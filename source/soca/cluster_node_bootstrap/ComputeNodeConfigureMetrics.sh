@@ -2,9 +2,10 @@
 
 # Make sure to update your ELK Access Policy if you do not use the default environment and have configured multiple NAT gateway
 
-
 source /etc/environment
 source /root/config.cfg
+source /etc/profile.d/proxy.sh
+
 cd /root
 
 # Checks. You can combine with $SOCA_JOB_QUEUE (or other) to specify different periods for different app/queue

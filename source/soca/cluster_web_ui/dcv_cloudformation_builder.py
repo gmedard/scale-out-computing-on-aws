@@ -48,6 +48,7 @@ def main(**launch_parameters):
         instance.InstanceType = launch_parameters["instance_type"]
         instance.SubnetId = random.choice(launch_parameters["soca_private_subnets"]) if len(launch_parameters["soca_private_subnets"]) > 1 else launch_parameters["soca_private_subnets"][0]
         instance.IamInstanceProfile = launch_parameters["ComputeNodeInstanceProfileArn"].split("instance-profile/")[-1]
+        instance.KeyName = launch_parameters["KeyName"]
         instance.UserData = Base64(Sub((launch_parameters["user_data"])))
         instance.Tags = base_Tags(
             Name=str(launch_parameters["cluster_id"] + "-" + launch_parameters["session_name"] + "-" + launch_parameters["user"]),

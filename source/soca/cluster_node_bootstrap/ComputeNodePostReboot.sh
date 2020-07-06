@@ -1,7 +1,11 @@
 #!/bin/bash -xe
 
+set -ex
+
 source /etc/environment
 source /root/config.cfg
+source /etc/profile.d/proxy.sh
+
 AWS=$(which aws)
 REQUIRE_REBOOT=0
 echo "SOCA > BEGIN PostReboot setup"
@@ -36,7 +40,9 @@ fi
 # Begin DCV Customization
 if [[ "$SOCA_JOB_TYPE" == "dcv" ]]; then
     echo "Installing DCV"
-    /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeInstallDCV.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeInstallDCV.log 2>&1
+    chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeInstallDCV.sh
+    /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeInstallDCV.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeInstallDCV.log 2>&1
+    echo "DCV installed"
     if [[ $? -eq 3 ]];
      then
        REQUIRE_REBOOT=1
@@ -186,8 +192,10 @@ while [ ! -d \$SOCA_HOST_SYSTEM_LOG ]
 do
     sleep 1
 done
-/bin/bash /apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
-/bin/bash /apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodeConfigureMetrics.log 2>&1
+chmod +x /apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh
+chmod +x /apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh 
+/apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
+/apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodeConfigureMetrics.log 2>&1
 systemctl start pbs" >> /etc/rc.local
     chmod +x /etc/rc.d/rc.local
     systemctl enable rc-local
@@ -217,14 +225,15 @@ else
     fi
 
     # Begin USER Customization
-    /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
+    chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh 
+    /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
     # End USER Customization
 
     # Begin Metric Customization
-    /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeConfigureMetrics.log 2>&1
+    chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh
+    =][-pl98/09o8ilapps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeConfigureMetrics.log 2>&1
     # End Metric Customization
 
     # Post-Boot routine completed, starting PBS
     systemctl start pbs
 fi
-

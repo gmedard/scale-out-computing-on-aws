@@ -8,6 +8,8 @@ Parameters:
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/16'
   ClusterId:
     Type: String
+  SocaDomain:
+    Type: String
 
 Resources:
   Vpc:
@@ -239,6 +241,65 @@ Resources:
       SubnetId: !Ref PrivateSubnet3
       RouteTableId: !Ref PrivateRouteTable
 
+  PrivateDNS:
+    # Can't create query logging for private hosted zone.
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref SocaDomain
+      VPCs: 
+        - VPCId: !Ref Vpc
+          VPCRegion: !Ref 'AWS::Region'
+      HostedZoneTags: 
+        - Key: 'soca:ClusterId'
+          Value: !Ref ClusterId
+
+  VpcFlowLogsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub "${ClusterId}-vpc-flow-logs"
+      RetentionInDays: 3653
+
+  VpcFlowLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - !Sub "vpc-flow-logs.${AWS::URLSuffix}"
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: FlowLogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                Resource:
+                  - '*'
+
+  VpcFlowLogs:
+    Type: AWS::EC2::FlowLog
+    Properties: 
+      ResourceType: VPC
+      ResourceId: !Ref Vpc
+      TrafficType: ALL
+      MaxAggregationInterval: 60
+      LogDestinationType: cloud-watch-logs
+      LogDestination: !GetAtt VpcFlowLogsLogGroup.Arn
+      DeliverLogsPermissionArn: !GetAtt VpcFlowLogsRole.Arn
+      Tags: 
+        - Key: 'soca:ClusterId'
+          Value: !Ref ClusterId
+
 Outputs:
   VpcId:
     Value: !Ref Vpc
@@ -254,9 +315,13 @@ Outputs:
     Value: !Ref PrivateSubnet2
   PrivateSubnet3:
     Value: !Ref PrivateSubnet3
+  PrivateRouteTable:
+    Value: !Ref PrivateRouteTable
   EIPNat:
     Value: !Ref EIPNat
   SchedulerPublicIP:
     Value: !Ref EIPScheduler
   SchedulerPublicIPAllocation:
     Value: !GetAtt EIPScheduler.AllocationId
+  HostedZoneId:
+    Value: !Ref PrivateDNS

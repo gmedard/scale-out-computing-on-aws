@@ -109,7 +109,7 @@ if __name__ == "__main__":
     print(" > Generated unique ID for build: " + unique_id)
     print(" > Creating temporary build folder ... ")
     print(" > Copying required files ... ")
-    targets = ['scripts', 'templates', 'README.txt', 'scale-out-computing-on-aws.template', 'install-with-existing-resources.template']
+    targets = ['proxy', 'scripts', 'templates', 'README.txt', 'scale-out-computing-on-aws.template', 'install-with-existing-resources.template']
     for target in targets:
         if os.path.isdir(target):
             copytree(target, build_folder + '/' + target)

@@ -2,6 +2,8 @@
 
 source /etc/environment
 source /root/config.cfg
+source /etc/profile.d/proxy.sh
+
 DCV_HOST_ALTNAME=$(hostname | cut -d. -f1)
 AWS=$(which aws)
 INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
@@ -15,7 +17,7 @@ then
 elif [[ $SOCA_BASE_OS == "amazonlinux2" ]]
 then
    yum install -y $(echo ${DCV_AMAZONLINUX_PKGS[*]})
-   amazon-linux-extras install mate-desktop1.x
+   amazon-linux-extras install -y mate-desktop1.x
    bash -c 'echo PREFERRED=/usr/bin/mate-session > /etc/sysconfig/desktop'
 
 else
@@ -85,14 +87,15 @@ sudo systemctl start dcvsimpleextauth
 sudo systemctl enable dcvserver
 sudo systemctl start dcvserver
 
-systemctl stop firewalld
-systemctl disable firewalld
+systemctl stop firewalld || true
+systemctl disable firewalld || true
 
 # Start X
 systemctl isolate graphical.target
 
-dcv create-session --owner $SOCA_DCV_OWNER $SOCA_DCV_SESSION_ID
 echo "Running command: dcv create-session --owner $SOCA_DCV_OWNER $SOCA_DCV_SESSION_ID"
+dcv create-session --owner $SOCA_DCV_OWNER $SOCA_DCV_SESSION_ID
+echo "Session created"
 sleep 5
 echo "@reboot dcv create-session --owner $SOCA_DCV_OWNER $SOCA_DCV_SESSION_ID" | crontab -
 
@@ -102,5 +105,5 @@ then
     exit 3 # notify ComputeNodePostReboot.sh to force reboot
 fi
 
-
+echo "Passed"
 exit 0

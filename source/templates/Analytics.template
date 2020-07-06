@@ -5,7 +5,7 @@ Parameters:
     Type: String
 
   PublicSubnet1:
-    Type: String
+    Type: AWS::EC2::Subnet::Id
 
   ClusterId:
     Type: String

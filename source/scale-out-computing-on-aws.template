@@ -16,14 +16,16 @@ Metadata:
           - BaseOS
           - CustomAMI
           - SchedulerInstanceType
-      -
-        Label:
+
+      - Label:
           default: Network and Security
         Parameters:
           - VpcCidr
           - ClientIp
           - PrefixListId
           - SSHKeyPair
+          - ProxyInstanceType
+
       - Label:
           default: Default LDAP user
         Parameters:
@@ -41,6 +43,8 @@ Metadata:
         default: (Optional) Have your own AMI?
       SSHKeyPair:
         default: What's your SSH keypair?
+      ProxyInstanceType:
+        default: Instance type for your proxy server
       BaseOS:
         default: Linux Distro
       S3InstallBucket:
@@ -77,9 +81,9 @@ Parameters:
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
-    Description: Choose the Cidr (/16) block you want to use for your VPC (eg 10.0.0.0/16)
-    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/16'
-    ConstraintDescription: Your VPC must use x.x.x./16 CIDR range
+    Description: Choose the Cidr (/16) block you want to use for your VPC (eg 10.0.0.0/16 - 10.255.0.0/16 or 192.168.0.0/16)
+    AllowedPattern: '((192\.168)|(10\.(\d{1,3})))(\.(\d{1,3})){2}/16'
+    ConstraintDescription: Your VPC must use 10.x.x.x/16 CIDR range
 
   ClientIp:
     Type: String
@@ -96,6 +100,11 @@ Parameters:
   SSHKeyPair:
     Type: AWS::EC2::KeyPair::KeyName
     Description: Default SSH pem keys used to SSH into the scheduler
+
+  ProxyInstanceType:
+    Default: m5.large
+    Type: String
+    Description: Choose the type of instance to use for the proxy
 
   S3InstallBucket:
     Type: String
@@ -311,6 +320,7 @@ Resources:
       Parameters:
         VpcCidr: !Ref VpcCidr
         ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
+        SocaDomain: 'soca.local'
       TimeoutInMinutes: 30
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Network.template"] ]
 
@@ -320,6 +330,16 @@ Resources:
     Properties:
       Parameters:
         VpcId: !GetAtt Network.Outputs.VpcId
+        SocaDomain: 'soca.local'
+        HostedZoneId: !GetAtt Network.Outputs.HostedZoneId
+        AL2ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", amazonlinux2]
+        SSHKeyPair: !Ref SSHKeyPair
+        ProxyInstanceType: !Ref ProxyInstanceType
+        ProxySubnetId: !GetAtt Network.Outputs.PublicSubnet1
+        PrivateSubnet1: !GetAtt Network.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt Network.Outputs.PrivateSubnet2
+        PrivateSubnet3: !GetAtt Network.Outputs.PrivateSubnet3
+        PrivateRouteTable: !GetAtt Network.Outputs.PrivateRouteTable
         ClientIp: !Ref ClientIp
         PrefixListId: !Ref PrefixListId
         ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
@@ -352,6 +372,8 @@ Resources:
     Properties:
       Parameters:
         SSHKeyPair: !Ref SSHKeyPair
+        ProxyPrivateDnsName: !GetAtt Security.Outputs.ProxyPrivateDnsName
+        NoProxy: !GetAtt Security.Outputs.NoProxy
         SchedulerInstanceType: !Ref SchedulerInstanceType
         SubnetId: !GetAtt Network.Outputs.PublicSubnet1
         SecurityGroupId: !GetAtt Security.Outputs.SchedulerSecurityGroup
@@ -393,7 +415,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
-        SchedulerSecurityGroup: !GetAtt Security.Outputs.SchedulerSecurityGroup
+        LoadBalancerSecurityGroup: !GetAtt Security.Outputs.LoadBalancerSecurityGroup
         PublicSubnet1: !GetAtt Network.Outputs.PublicSubnet1
         PublicSubnet2: !GetAtt Network.Outputs.PublicSubnet2
         PublicSubnet3: !GetAtt Network.Outputs.PublicSubnet3
@@ -411,6 +433,10 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
+        SocaDomain: 'soca.local'
+        ProxyPrivateIP: !GetAtt Security.Outputs.ProxyPrivateIP
+        ProxyPrivateDnsName: !GetAtt Security.Outputs.ProxyPrivateDnsName
+        NoProxy: !GetAtt Security.Outputs.NoProxy
         SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId
         SchedulerPrivateDnsName: !GetAtt Scheduler.Outputs.SchedulerPrivateDnsName
         SchedulerPrivateIP: !GetAtt Scheduler.Outputs.SchedulerPrivateIP

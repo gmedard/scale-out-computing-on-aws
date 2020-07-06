@@ -669,10 +669,17 @@ def main(**kwargs):
                 'Key': 'anonymous_metrics',
                 'Default': aligo_configuration["DefaultMetricCollection"]
             },
-
+            'NoProxy': {
+                'Key': 'NoProxy',
+                'Default': aligo_configuration['NoProxy']
+            },
             'PlacementGroup': {
                 'Key': 'placement_group',
                 'Default': True
+            },
+            'ProxyPrivateDnsName': {
+                'Key': 'ProxyPrivateDnsName',
+                'Default': aligo_configuration['ProxyPrivateDnsName']
             },
             'RootSize': {
                 'Key': 'root_size',
@@ -701,6 +708,10 @@ def main(**kwargs):
             'SchedulerHostname': {
                 'Key': None,
                 'Default': aligo_configuration['SchedulerPrivateDnsName']
+            },
+            'SocaDomain': {
+                'Key': 'SocaDomain',
+                'Default': aligo_configuration['SocaDomain']
             },
             'SolutionMetricLambda': {
                 'Key': None,

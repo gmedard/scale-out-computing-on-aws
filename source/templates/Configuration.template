@@ -22,6 +22,18 @@ Parameters:
   PrivateSubnet3:
     Type: String
 
+  SocaDomain:
+    Type: String
+
+  ProxyPrivateIP:
+    Type: String
+
+  ProxyPrivateDnsName:
+    Type: String
+
+  NoProxy:
+    Type: String
+
   SchedulerPrivateIP:
     Type: String
 
@@ -206,12 +218,17 @@ Resources:
       Name: !Sub ${ClusterId}
       Description: !Sub Contain all settings for ${ClusterId}
       SecretString: !Sub '{"VpcId": "${VpcId}",
+      "Region": "${AWS::Region}",
       "PublicSubnet1": "${PublicSubnet1}",
       "PublicSubnet2": "${PublicSubnet2}",
       "PublicSubnet3": "${PublicSubnet3}",
       "PrivateSubnet1": "${PrivateSubnet1}",
       "PrivateSubnet2": "${PrivateSubnet2}",
       "PrivateSubnet3": "${PrivateSubnet3}",
+      "SocaDomain": "${SocaDomain}",
+      "ProxyPrivateIP": "${ProxyPrivateIP}",
+      "ProxyPrivateDnsName": "${ProxyPrivateDnsName}",
+      "NoProxy": "${NoProxy}",
       "SchedulerPrivateIP": "${SchedulerPrivateIP}",
       "SchedulerPrivateDnsName": "${SchedulerPrivateDnsName}",
       "SchedulerInstanceId": "${SchedulerInstanceId}",

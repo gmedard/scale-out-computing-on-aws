@@ -2,21 +2,26 @@
 
 source /etc/environment
 source /root/config.cfg
+source /etc/profile.d/proxy.sh
 
 if [ $# -lt 1 ]
   then
-    exit 0
+    echo "usage: $0 hostname"
+    exit 1
 fi
 
+SCHEDULER_HOSTNAME=$1
+
 # In case AMI already have PBS installed, force it to stop
-service pbs stop
+service pbs stop || true
 
 # Install SSM
-yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-systemctl enable amazon-ssm-agent
+if ! yum list amazon-ssm-agent; then
+    yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+fi
+systemctl enable amazon-ssm-agent || true
 systemctl restart amazon-ssm-agent
 
-SCHEDULER_HOSTNAME=$1
 AWS=$(which aws)
 
 # Prepare PBS/System
@@ -36,75 +41,77 @@ yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]})
 yum install -y $(echo ${SSSD_PKGS[*]})
 
 # Configure Scratch Directory if specified by the user
-mkdir /scratch/
-if [[ $SOCA_SCRATCH_SIZE -ne 0 ]];
-then
-    LIST_ALL_DISKS=$(lsblk --list | grep disk | awk '{print $1}')
-    for disk in $LIST_ALL_DISKS;
-	    do
-	    CHECK_IF_PARTITION_EXIST=$(lsblk -b /dev/$disk | grep part | wc -l)
-	    CHECK_PARTITION_SIZE=$(lsblk -lnb /dev/$disk -o SIZE)
-	    let SOCA_SCRATCH_SIZE_IN_BYTES=$SOCA_SCRATCH_SIZE*1024*1024*1024
-	    if [[ $CHECK_IF_PARTITION_EXIST -eq 0 ]] && [[ $CHECK_PARTITION_SIZE -eq $SOCA_SCRATCH_SIZE_IN_BYTES ]];
-	    then
-	        echo "Detected /dev/$disk with no partition as scratch device"
-		    mkfs -t ext4 /dev/$disk
-            echo "/dev/$disk /scratch ext4 defaults 0 0" >> /etc/fstab
-	    fi
-    done
-else
-    # Use Instance Store if possible.
-    # When instance has more than 1 instance store, raid + mount them as /scratch
-	VOLUME_LIST=()
-	if [[ ! -z $(ls /dev/nvme[1-9]n1) ]];
-        then
-        echo 'Detected Instance Store: NVME'
-        DEVICES=$(ls /dev/nvme[1-9]n1)
-
-    elif [[ ! -z $(ls /dev/xvdc[a-z]) ]];
-        then
-        echo 'Detected Instance Store: SSD'
-        DEVICES=$(ls /dev/xvdc[a-z])
-    else
-        echo 'No instance store detected on this machine.'
-    fi
-
-	if [[ ! -z $DEVICES ]];
-	then
-        echo "Detected Instance Store with NVME:" $DEVICES
-        # Clear Devices which are already mounted (eg: when customer import their own AMI)
-        for device in $DEVICES;
-        do
-            CHECK_IF_PARTITION_EXIST=$(lsblk -b $device | grep part | wc -l)
-            if [[ $CHECK_IF_PARTITION_EXIST -eq 0 ]];
-             then
-             echo "$device is free and can be used"
-             VOLUME_LIST+=($device)
+if [ ! -e /var/lib/cloud/instance/sem/scratch_configured ]; then
+    mkdir -p /scratch/
+    if [[ $SOCA_SCRATCH_SIZE -ne 0 ]];
+    then
+        LIST_ALL_DISKS=$(lsblk --list | grep disk | awk '{print $1}')
+        for disk in $LIST_ALL_DISKS;
+            do
+            CHECK_IF_PARTITION_EXIST=$(lsblk -b /dev/$disk | grep part | wc -l)
+            CHECK_PARTITION_SIZE=$(lsblk -lnb /dev/$disk -o SIZE)
+            let SOCA_SCRATCH_SIZE_IN_BYTES=$SOCA_SCRATCH_SIZE*1024*1024*1024
+            if [[ $CHECK_IF_PARTITION_EXIST -eq 0 ]] && [[ $CHECK_PARTITION_SIZE -eq $SOCA_SCRATCH_SIZE_IN_BYTES ]];
+            then
+                echo "Detected /dev/$disk with no partition as scratch device"
+                mkfs -t ext4 /dev/$disk
+                echo "/dev/$disk /scratch ext4 defaults 0 0" >> /etc/fstab
             fi
         done
+    else
+        # Use Instance Store if possible.
+        # When instance has more than 1 instance store, raid + mount them as /scratch
+        VOLUME_LIST=()
+        if [[ ! -z $(ls /dev/nvme[1-9]n1) ]];
+            then
+            echo 'Detected Instance Store: NVME'
+            DEVICES=$(ls /dev/nvme[1-9]n1)
 
-	    VOLUME_COUNT=${#VOLUME_LIST[@]}
-	    if [[ $VOLUME_COUNT -eq 1 ]];
-	    then
-	        # If only 1 instance store, mfks as ext4
-	        echo "Detected  1 NVMe device available, formatting as ext4 .."
-	        mkfs -t ext4 $DEVICES
-	        echo "$DEVICES /scratch ext4 defaults 0 0" >> /etc/fstab
-	    elif [[ $VOLUME_COUNT -gt 1 ]];
-	    then
-	        # if more than 1 instance store disks, raid them !
-	        echo "Detected more than 1 NVMe device available, creating XFS fs ..."
-	        DEVICE_NAME="md0"
-            for dev in ${VOLUME_LIST[@]} ; do dd if=/dev/zero of=$dev bs=1M count=1 ; done
-            echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
-            mkfs -t ext4 /dev/$DEVICE_NAME
-            echo "/dev/$DEVICE_NAME /scratch ext4 defaults 0 0" >> /etc/fstab
+        elif [[ ! -z $(ls /dev/xvdc[a-z]) ]];
+            then
+            echo 'Detected Instance Store: SSD'
+            DEVICES=$(ls /dev/xvdc[a-z])
         else
-            echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
-	    fi
-    fi
-fi
+            echo 'No instance store detected on this machine.'
+        fi
 
+        if [[ ! -z $DEVICES ]];
+        then
+            echo "Detected Instance Store with NVME:" $DEVICES
+            # Clear Devices which are already mounted (eg: when customer import their own AMI)
+            for device in $DEVICES;
+            do
+                CHECK_IF_PARTITION_EXIST=$(lsblk -b $device | grep part | wc -l)
+                if [[ $CHECK_IF_PARTITION_EXIST -eq 0 ]];
+                then
+                echo "$device is free and can be used"
+                VOLUME_LIST+=($device)
+                fi
+            done
+
+            VOLUME_COUNT=${#VOLUME_LIST[@]}
+            if [[ $VOLUME_COUNT -eq 1 ]];
+            then
+                # If only 1 instance store, mfks as ext4
+                echo "Detected  1 NVMe device available, formatting as ext4 .."
+                mkfs -t ext4 $DEVICES
+                echo "$DEVICES /scratch ext4 defaults 0 0" >> /etc/fstab
+            elif [[ $VOLUME_COUNT -gt 1 ]];
+            then
+                # if more than 1 instance store disks, raid them !
+                echo "Detected more than 1 NVMe device available, creating XFS fs ..."
+                DEVICE_NAME="md0"
+                for dev in ${VOLUME_LIST[@]} ; do dd if=/dev/zero of=$dev bs=1M count=1 ; done
+                echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
+                mkfs -t ext4 /dev/$DEVICE_NAME
+                echo "/dev/$DEVICE_NAME /scratch ext4 defaults 0 0" >> /etc/fstab
+            else
+                echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
+            fi
+        fi
+    fi
+    touch /var/lib/cloud/instance/sem/scratch_configured
+fi
 
 # Install PBSPro if needed
 cd ~
@@ -143,12 +150,12 @@ SERVER_HOSTNAME=$(hostname)
 SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)
 echo $SERVER_IP $SERVER_HOSTNAME $SERVER_HOSTNAME_ALT >> /etc/hosts
 
+if [ ! -e  /var/lib/cloud/instance/sem/ldap_configured ]; then
+    # Configure Ldap
+    echo "URI ldap://$SCHEDULER_HOSTNAME" >> /etc/openldap/ldap.conf
+    echo "BASE $LDAP_BASE" >> /etc/openldap/ldap.conf
 
-# Configure Ldap
-echo "URI ldap://$SCHEDULER_HOSTNAME" >> /etc/openldap/ldap.conf
-echo "BASE $LDAP_BASE" >> /etc/openldap/ldap.conf
-
-echo -e "[domain/default]
+    echo -e "[domain/default]
 enumerate = True
 autofs_provider = ldap
 cache_credentials = True
@@ -187,26 +194,28 @@ ldap_sudo_smart_refresh_interval=3600
 
 [secrets]" > /etc/sssd/sssd.conf
 
+    chmod 600 /etc/sssd/sssd.conf
+    systemctl enable sssd
+    systemctl restart sssd
 
-chmod 600 /etc/sssd/sssd.conf
-systemctl enable sssd
-systemctl restart sssd
+    echo | openssl s_client -connect $SCHEDULER_HOSTNAME:389 -starttls ldap > /root/open_ssl_ldap
+    mkdir /etc/openldap/cacerts/
+    cat /root/open_ssl_ldap | openssl x509 > /etc/openldap/cacerts/openldap-server.pem
 
-echo | openssl s_client -connect $SCHEDULER_HOSTNAME:389 -starttls ldap > /root/open_ssl_ldap
-mkdir /etc/openldap/cacerts/
-cat /root/open_ssl_ldap | openssl x509 > /etc/openldap/cacerts/openldap-server.pem
+    authconfig --disablesssd --disablesssdauth --disableldap --disableldapauth --disablekrb5 --disablekrb5kdcdns --disablekrb5realmdns --disablewinbind --disablewinbindauth --disablewinbindkrb5 --disableldaptls --disablerfc2307bis --updateall
+    sss_cache -E
+    authconfig --enablesssd --enablesssdauth --enableldap --enableldaptls --enableldapauth --ldapserver=ldap://$SCHEDULER_HOSTNAME --ldapbasedn=$LDAP_BASE --enablelocauthorize --enablemkhomedir --enablecachecreds --updateall
 
-authconfig --disablesssd --disablesssdauth --disableldap --disableldapauth --disablekrb5 --disablekrb5kdcdns --disablekrb5realmdns --disablewinbind --disablewinbindauth --disablewinbindkrb5 --disableldaptls --disablerfc2307bis --updateall
-sss_cache -E
-authconfig --enablesssd --enablesssdauth --enableldap --enableldaptls --enableldapauth --ldapserver=ldap://$SCHEDULER_HOSTNAME --ldapbasedn=$LDAP_BASE --enablelocauthorize --enablemkhomedir --enablecachecreds --updateall
+    echo "sudoers: files sss" >> /etc/nsswitch.conf
 
-echo "sudoers: files sss" >> /etc/nsswitch.conf
+    touch /var/lib/cloud/instance/sem/ldap_configured
+fi
 
 # Disable SELINUX & firewalld
 sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
 
-systemctl stop firewalld
-systemctl disable firewalld
+systemctl stop firewalld || true
+systemctl disable firewalld || true
 
 # Disable StrictHostKeyChecking
 echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config
@@ -256,7 +265,12 @@ echo -e  "
 * soft memlock unlimited
 " > /etc/security/limits.conf
 
-
 # Reboot to disable SELINUX
-sudo reboot
 # Upon reboot, ComputenodePostReboot will be executed
+if [ ! -e /var/lib/cloud/instance/sem/rebooted ] || ! needs-restarting -r; then
+    touch /var/lib/cloud/instance/sem/rebooted
+    reboot
+else
+    chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh
+    /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log
+fi

@@ -277,6 +277,7 @@ def create():
     soca_private_subnets = [soca_configuration["PrivateSubnet1"],
                             soca_configuration["PrivateSubnet2"],
                             soca_configuration["PrivateSubnet3"]]
+    keyName = soca_configuration["SSHKeyPair"]
 
     # sanitize session_name, limit to 255 chars
     if parameters["session_name"] is False:
@@ -303,6 +304,32 @@ def create():
 
 
     user_data = '''#!/bin/bash -x
+
+# Configure the proxy
+cat <<EOF > /etc/profile.d/proxy.sh
+proxy_url="http://''' + soca_configuration['ProxyPrivateDnsName'] + ''':3128/"
+
+export HTTP_PROXY=\$proxy_url
+export HTTPS_PROXY=\$proxy_url
+export http_proxy=\$proxy_url
+export https_proxy=\$proxy_url
+
+# No proxy:
+# Comma separated list of destinations that shouldn't go to the proxy.
+# - EC2 metadata service
+# - Private IP address ranges (VPC local)
+export NO_PROXY="''' + soca_configuration['NoProxy'] + '''"
+export no_proxy=\$NO_PROXY
+
+#export REQUESTS_CA_BUNDLE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+EOF
+source /etc/profile.d/proxy.sh
+
+cat <<EOF > /etc/yum.repos.d/10_proxy.conf
+[main]
+proxy=http://''' + soca_configuration['ProxyPrivateDnsName'] + '''proxyserver:3128/
+EOF
+
 export PATH=$PATH:/usr/local/bin
 if [[ "''' + base_os + '''" == "centos7" ]] || [[ "''' + base_os + '''" == "rhel7" ]];
     then
@@ -393,9 +420,11 @@ dumpdir /var/run/chrony
 systemctl enable chronyd
 # Prepare  Log folder
 mkdir -p $SOCA_HOST_SYSTEM_LOG
-echo "@reboot /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log 2>&1" | crontab -
+chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh 
+echo "@reboot /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log 2>&1" | crontab -
 $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.cfg /root/
-/bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh ''' + soca_configuration['SchedulerPrivateDnsName'] + ''' >> $SOCA_HOST_SYSTEM_LOG/ComputeNode.sh.log 2>&1'''
+chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh
+/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh ''' + soca_configuration['SchedulerPrivateDnsName'] + ''' >> $SOCA_HOST_SYSTEM_LOG/ComputeNode.sh.log 2>&1'''
 
 
 
@@ -423,6 +452,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                          "instance_profile": instance_profile,
                          "instance_type": instance_type,
                          "soca_private_subnets": soca_private_subnets,
+                         "KeyName": keyName,
                          "user_data": user_data,
                          "image_id": image_id,
                          "session_name": session_name,

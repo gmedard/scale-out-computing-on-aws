@@ -11,6 +11,12 @@ Parameters:
   SSHKeyPair:
     Type: AWS::EC2::KeyPair::KeyName
 
+  ProxyPrivateDnsName:
+    Type: String
+
+  NoProxy:
+    Type: String
+
   SchedulerInstanceType:
     Type: String
 
@@ -33,7 +39,7 @@ Parameters:
     Type: String
 
   ImageId:
-    Type: String
+    Type: AWS::EC2::Image::Id
 
   BaseOS:
     Type: String
@@ -46,13 +52,13 @@ Parameters:
 
   UserPassword:
     Type: String
+    NoEcho: true
 
   SchedulerPublicIP:
     Type: String
 
   SchedulerPublicIPAllocation:
     Type: String
-
 
 Conditions:
   UseAmazonLinux: !Equals [ !Ref BaseOS, 'amazonlinux2']
@@ -93,6 +99,27 @@ Resources:
           "Fn::Base64": !Sub |
             #!/bin/bash -xe
 
+            # Configure the proxy
+            export ProxyPrivateDnsName=${ProxyPrivateDnsName}
+            cat <<EOF > /etc/profile.d/proxy.sh
+            proxy_url="http://${ProxyPrivateDnsName}:3128/"
+
+            export HTTP_PROXY=\$proxy_url
+            export HTTPS_PROXY=\$proxy_url
+            export http_proxy=\$proxy_url
+            export https_proxy=\$proxy_url
+
+            # No proxy:
+            # Comma separated list of destinations that shouldn't go to the proxy.
+            # - EC2 metadata service
+            # - Private IP address ranges (VPC local)
+            export NO_PROXY="${NoProxy}"
+            export no_proxy=\$NO_PROXY
+
+            #export REQUESTS_CA_BUNDLE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+            EOF
+            source /etc/profile.d/proxy.sh
+
             export PATH=$PATH:/usr/local/bin
             # Deactivate shell to make sure users won't access the cluster if it's not ready
             echo '
@@ -102,15 +129,16 @@ Resources:
             Once cluster is ready to use, this message will be replaced automatically and you will be able to SSH.
             *********************************************************' > /etc/nologin
 
-            if [ "${BaseOS}" == "amazonlinux2" ] || [ "${BaseOS}" == "rhel7" ];
-              then
-                usermod --shell /usr/sbin/nologin ec2-user
-            fi
+            # If anything goes wrong then this prevents us from connecting via ssh and debugging.
+            #if [ "${BaseOS}" == "amazonlinux2" ] || [ "${BaseOS}" == "rhel7" ];
+            #  then
+            #    usermod --shell /usr/sbin/nologin ec2-user
+            #fi
 
-            if [ "${BaseOS}" == "centos7" ];
-              then
-                usermod --shell /usr/sbin/nologin centos
-            fi
+            #if [ "${BaseOS}" == "centos7" ];
+            #  then
+            #    usermod --shell /usr/sbin/nologin centos
+            #fi
 
             # Install awscli
             if [ "${BaseOS}" == "centos7" ] || [ "${BaseOS}" == "rhel7" ];
@@ -125,7 +153,7 @@ Resources:
             if [ "${BaseOS}" == "amazonlinux2" ];
             then
               /usr/sbin/update-motd --disable
-              rm /etc/cron.d/update-motd
+              rm -f /etc/cron.d/update-motd
               rm -f /etc/update-motd.d/*
             fi
 
@@ -137,6 +165,7 @@ Resources:
             echo export "SOCA_INSTALL_BUCKET_FOLDER=${S3InstallFolder}" >> /etc/environment
             echo export "SOCA_VERSION=${Version}" >> /etc/environment
             echo export "SOCA_INSTALL_AMI=${ImageId}" >> /etc/environment
+            echo export "PROXY_PRIVATE_DNS_NAME=${ProxyPrivateDnsName}" >> /etc/environment
             source /etc/environment
 
             # Tag EBS disks manually as CFN ASG does not support it
@@ -150,12 +179,17 @@ Resources:
             ENI_IDS=$(aws ec2 describe-network-interfaces --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "NetworkInterfaces[*].[NetworkInterfaceId]" --out text | tr "\n" " ")
             $AWS ec2 create-tags --resources $ENI_IDS --region $AWS_REGION --tags Key=Name,Value="${ClusterId} Scheduler Network Adapter" "Key=soca:ClusterId,Value=${ClusterId}"
 
-            echo "@reboot /bin/aws s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/SchedulerPostReboot.sh /root && /bin/bash /root/SchedulerPostReboot.sh ${S3Bucket} ${S3InstallFolder} ${UserName} '${UserPassword}' >> /root/PostRebootConfig.log 2>&1" | crontab -
+            echo "/root/SchedulerPostReboot.sh ${S3Bucket} ${S3InstallFolder} ${UserName} '${UserPassword}'" >> /root/call-SchedulerPostReboot.sh
+            chmod 0700 /root/call-SchedulerPostReboot.sh
+            echo "@reboot /bin/aws s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/SchedulerPostReboot.sh /root && chmod +x /root/SchedulerPostReboot.sh && /root/call-SchedulerPostReboot.sh >> /root/PostRebootConfig.log 2>&1" | crontab -
             AWS=$(which aws)
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/config.cfg /root/
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/requirements.txt /root/
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/Scheduler.sh /root/
-            /bin/bash /root/Scheduler.sh ${EFSDataDns} ${EFSAppsDns} >> /root/Scheduler.sh.log 2>&1
+            $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/SchedulerPostReboot.sh /root/
+            chmod +x /root/Scheduler.sh
+            chmod +x /root/SchedulerPostReboot.sh
+            /root/Scheduler.sh ${EFSDataDns} ${EFSAppsDns} >> /root/Scheduler.sh.log 2>&1
 
   EIPAssociationToScheduler:
     DependsOn: SchedulerEC2Host
