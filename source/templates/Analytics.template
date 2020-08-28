@@ -22,6 +22,16 @@ Parameters:
   ClientIp:
     Type: String
 
+  PrefixListId:
+    Type: String
+
+Conditions:
+  HasClientIp:
+    !Not [ !Equals [ !Ref ClientIp, '' ] ]
+
+  HasPrefixListId:
+    !Not [ !Equals [ !Ref PrefixListId, '' ] ]
+
 Resources:
   ElasticsearchDomain:
     Metadata:
@@ -57,7 +67,7 @@ Resources:
             Condition:
               IpAddress:
                 aws:SourceIp:
-                  - !Ref ClientIp
+                  - !If [ HasClientIp, !Ref ClientIp, 'AWS::NoValue' ]
                   - !Sub ${SchedulerPublicIP}/32
                   - !Sub ${EIPNat}/32
             Resource: !Sub 'arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/${ClusterId}/*'

@@ -22,6 +22,7 @@ Metadata:
         Parameters:
           - VpcCidr
           - ClientIp
+          - PrefixListId
           - SSHKeyPair
       - Label:
           default: Default LDAP user
@@ -33,7 +34,9 @@ Metadata:
       VpcCidr:
         default: Create your new VPC
       ClientIp:
-        default: What's your IP?
+        default: Which IP addresses should have access?
+      PrefixListId:
+        default: Which prefix list should have access?
       CustomAMI:
         default: (Optional) Have your own AMI?
       SSHKeyPair:
@@ -81,8 +84,14 @@ Parameters:
   ClientIp:
     Type: String
     Description: Default IP(s) allowed to directly SSH into the scheduler and access ElasticSearch. 0.0.0.0/0 means ALL INTERNET access. You probably want to change it with your own IP/subnet (x.x.x.x/32 for your own ip or x.x.x.x/24 for range. Replace x.x.x.x with your own PUBLIC IP. You can get your public IP using tools such as https://ifconfig.co/). Make sure to keep it restrictive!
-    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})|(^$)'
     ConstraintDescription: ClientIP must be a valid IP or network range of the form x.x.x.x/x. If you want to add everyone (not recommended) use 0.0.0.0/0 otherwise specify your IP/NETMASK (e.g x.x.x/32 or x.x.x.x/24 for subnet range)
+
+  PrefixListId:
+    Type: String
+    Description: Prefix list with IP(s) allowed to directly SSH into the scheduler and access ElasticSearch.
+    AllowedPattern: '(pl-([a-zA-Z0-9]+))|(^$)'
+    ConstraintDescription: PrefixListId must be blank or pl-[a-z][A-Z][0-9]+
 
   SSHKeyPair:
     Type: AWS::EC2::KeyPair::KeyName
@@ -312,6 +321,7 @@ Resources:
       Parameters:
         VpcId: !GetAtt Network.Outputs.VpcId
         ClientIp: !Ref ClientIp
+        PrefixListId: !Ref PrefixListId
         ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         S3InstallBucket: !Ref S3InstallBucket
         S3InstallFolder: !Ref S3InstallFolder
@@ -371,6 +381,7 @@ Resources:
         ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         ClusterIdLC: !GetAtt CheckSOCAPreRequisite.ClusterIdLC
         ClientIp: !Ref ClientIp
+        PrefixListId: !Ref PrefixListId
         SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
         EIPNat: !GetAtt Network.Outputs.EIPNat
 

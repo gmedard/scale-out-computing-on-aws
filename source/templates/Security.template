@@ -7,6 +7,9 @@ Parameters:
   ClientIp:
     Type: String
 
+  PrefixListId:
+    Type: String
+
   SchedulerPublicIP:
     Type: String
 
@@ -21,6 +24,13 @@ Parameters:
 
   S3InstallFolder:
     Type: String
+
+Conditions:
+  HasClientIp:
+    !Not [ !Equals [ !Ref ClientIp, '' ] ]
+
+  HasPrefixListId:
+    !Not [ !Equals [ !Ref PrefixListId, '' ] ]
 
 Resources:
   SchedulerSecurityGroup:
@@ -79,6 +89,7 @@ Resources:
       Description: "Allow all traffic between scheduler and compute nodes"
 
   SchedulerInboundRuleAllowClientIP:
+    Condition: HasClientIp
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       IpProtocol: tcp
@@ -88,13 +99,36 @@ Resources:
       GroupId: !GetAtt SchedulerSecurityGroup.GroupId
       Description: "Allow SSH traffic from client IP to master host"
 
+  SchedulerInboundRuleAllowPrefixList:
+    Condition: HasPrefixListId
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      SourcePrefixListId: !Ref PrefixListId
+      GroupId: !GetAtt SchedulerSecurityGroup.GroupId
+      Description: "Allow SSH traffic from client IP to master host"
+
   SchedulerInboundRuleAllowClientIPHTTPS:
+    Condition: HasClientIp
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       IpProtocol: tcp
       FromPort: 443
       ToPort: 443
       CidrIp: !Ref ClientIp
+      GroupId: !GetAtt SchedulerSecurityGroup.GroupId
+      Description: "Allow HTTPS traffic from client IP to ELB"
+
+  SchedulerInboundRuleAllowPrefixListIPHTTPS:
+    Condition: HasPrefixListId
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourcePrefixListId: !Ref PrefixListId
       GroupId: !GetAtt SchedulerSecurityGroup.GroupId
       Description: "Allow HTTPS traffic from client IP to ELB"
 
@@ -119,12 +153,24 @@ Resources:
       Description: "Allow HTTPS traffic from Compute Nodes NAT IP to ELB"
 
   SchedulerInboundRuleAllowClientIPHTTP:
+    Condition: HasClientIp
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       IpProtocol: tcp
       FromPort: 80
       ToPort: 80
       CidrIp: !Ref ClientIp
+      GroupId: !GetAtt SchedulerSecurityGroup.GroupId
+      Description: "Allow HTTP traffic from client IP to ELB"
+
+  SchedulerInboundRuleAllowPrefixListIPHTTP:
+    Condition: HasPrefixListId
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourcePrefixListId: !Ref PrefixListId
       GroupId: !GetAtt SchedulerSecurityGroup.GroupId
       Description: "Allow HTTP traffic from client IP to ELB"
 
