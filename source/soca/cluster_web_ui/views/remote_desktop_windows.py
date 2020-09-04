@@ -16,11 +16,13 @@ from botocore.exceptions import ClientError
 import re
 import os
 import json
+import dcv_cloudformation_builder
 from cryptography.fernet import Fernet
 
 remote_desktop_windows = Blueprint('remote_desktop_windows', __name__, template_folder='templates')
-client_ec2 = boto3.client('ec2')
-client_lambda = boto3.client('lambda')
+client_ec2 = boto3.client("ec2")
+client_lambda = boto3.client("lambda")
+client_cfn = boto3.client("cloudformation")
 logger = logging.getLogger("application")
 
 def get_ami_info():
@@ -35,8 +37,7 @@ def encrypt(message):
     return cipher_suite.encrypt(message.encode("utf-8"))
 
 
-def launch_instance(launch_parameters, dry_run):
-    # Launch Actual Capacity
+def can_launch_instance(launch_parameters):
     try:
         client_ec2.run_instances(
             BlockDeviceMappings=[
@@ -58,60 +59,15 @@ def launch_instance(launch_parameters, dry_run):
             SubnetId=random.choice(launch_parameters["soca_private_subnets"]),
             UserData=launch_parameters["user_data"],
             ImageId=launch_parameters["image_id"],
-            DryRun=False if dry_run is False else True,
+            DryRun=True,
             HibernationOptions={'Configured': launch_parameters["hibernate"]},
-            TagSpecifications=[
-                {"ResourceType": "instance",
-                 "Tags": [
-                     {
-                         "Key": "Name",
-                         "Value": launch_parameters["cluster_id"] + "-" + launch_parameters["session_name"] + "-" + session["user"]
-                     },
-                     {
-                         "Key": "soca:JobName",
-                         "Value": launch_parameters["session_name"]
-                     },
-                     {
-                         "Key": "soca:JobOwner",
-                         "Value": session["user"]
-                     },
-                     {
-                         "Key": "soca:JobProject",
-                         "Value": "Desktop"
-                     },
-                     {
-                         "Key": "soca:DCVSupportHibernate",
-                         "Value": str(launch_parameters["hibernate"]).lower()
-                     },
-                     {
-                         "Key": "soca:ClusterId",
-                         "Value": launch_parameters["cluster_id"]
-                     },
-                     {
-                         "Key": "soca:DCVSessionUUID",
-                         "Value": launch_parameters["session_uuid"]
-                     },
-                     {
-                         "Key": "soca:NodeType",
-                         "Value": "soca-dcv"
-                     },
-                     {
-                         "Key": "soca:DCVSystem",
-                         "Value": "windows"
-                     }
-                 ]}]
         )
 
     except ClientError as err:
-        if dry_run is True:
-            if err.response['Error'].get('Code') == 'DryRunOperation':
-                return True
-            else:
-                return "Dry run failed. Unable to launch capacity due to: {}".format(err)
+        if err.response['Error'].get('Code') == 'DryRunOperation':
+            return True
         else:
-            return "Unable to provision capacity due to {}".format(err)
-
-    return True
+            return "Dry run failed. Unable to launch capacity due to: {}".format(err)
 
 
 def get_host_info(tag_uuid, cluster_id):
@@ -180,12 +136,24 @@ def index():
         dcv_authentication_token = session_info.dcv_authentication_token
 
         session_id = session_info.session_id
+        stack_name = str(read_secretmanager.get_soca_configuration()["ClusterId"] + "-" + session_name + "-" + session["user"])
         host_info = get_host_info(tag_uuid, read_secretmanager.get_soca_configuration()["ClusterId"])
+        logger.info(f"Host Info {host_info}")
         if not host_info:
-            # no host detected, session no longer active
-            session_info.is_active = False
-            session_info.deactivated_on = datetime.utcnow()
-            db.session.commit()
+            try:
+                check_stack = client_cfn.describe_stacks(StackName=stack_name)
+                logger.info(f"Host Info check_stack {check_stack}")
+                if check_stack['Stacks'][0]['StackStatus'] in ['CREATE_FAILED', 'ROLLBACK_COMPLETE', 'ROLLBACK_FAILED']:
+                    logger.info(f"Host Info DEACTIVATE")
+                    # no host detected, session no longer active
+                    session_info.is_active = False
+                    session_info.deactivated_on = datetime.utcnow()
+                    db.session.commit()
+            except Exception as err:
+                logger.error(f"Error checking CFN stack {stack_name} due to {err}")
+                session_info.is_active = False
+                session_info.deactivated_on = datetime.utcnow()
+                db.session.commit()
         else:
             # detected EC2 host for the session
             if not dcv_authentication_token:
@@ -201,10 +169,21 @@ def index():
                 db.session.commit()
 
         if "status" not in host_info.keys():
-            session_info.is_active = False
-            session_info.deactivated_on = datetime.utcnow()
-            db.session.commit()
-            db.session.commit()
+            try:
+                check_stack = client_cfn.describe_stacks(StackName=stack_name)
+                logger.info(f"Host Info check_stack {check_stack}")
+                if check_stack['Stacks'][0]['StackStatus'] in ['CREATE_FAILED', 'ROLLBACK_COMPLETE', 'ROLLBACK_FAILED']:
+                    logger.info(f"Host Info DEACTIVATE")
+                    # no host detected, session no longer active
+                    session_info.is_active = False
+                    session_info.deactivated_on = datetime.utcnow()
+                    db.session.commit()
+
+            except Exception as err:
+                logger.error(f"Error checking CFN stack {stack_name} due to {err}")
+                session_info.is_active = False
+                session_info.deactivated_on = datetime.utcnow()
+                db.session.commit()
         else:
             if host_info["status"] in ["stopped", "stopping"] and session_state != "stopped":
                 session_state = "stopped"
@@ -270,7 +249,7 @@ def index():
 @login_required
 def create():
     parameters = {}
-    for parameter in ["instance_type", "disk_size", "session_number", "session_name", "instance_ami", "hibernate"]:
+    for parameter in ["instance_type", "disk_size", "session_number", "session_name", "instance_ami", "hibernate", "subnet_id"]:
         if not request.form[parameter]:
             parameters[parameter] = False
         else:
@@ -287,7 +266,10 @@ def create():
     soca_configuration = read_secretmanager.get_soca_configuration()
     instance_profile = soca_configuration["ComputeNodeInstanceProfileArn"]
     security_group_id = soca_configuration["ComputeNodeSecurityGroup"]
-    soca_private_subnets = [soca_configuration["PrivateSubnet1"],
+    if parameters["subnet_id"] is not False:
+        soca_private_subnets = [parameters["subnet_id"]]
+    else:
+        soca_private_subnets = [soca_configuration["PrivateSubnet1"],
                             soca_configuration["PrivateSubnet2"],
                             soca_configuration["PrivateSubnet3"]]
 
@@ -370,34 +352,38 @@ def create():
                          "image_id": image_id,
                          "session_name": session_name,
                          "session_uuid": session_uuid,
+                         "base_os": "windows",
                          "disk_size": parameters["disk_size"],
                          "cluster_id": soca_configuration["ClusterId"],
-                         "hibernate": parameters["hibernate"]
+                         "hibernate": parameters["hibernate"],
+                         "user": session["user"],
+                         "DefaultMetricCollection": True if soca_configuration["DefaultMetricCollection"] == "true" else False,
+                         "SolutionMetricLambda": soca_configuration['SolutionMetricLambda'],
+                         "ComputeNodeInstanceProfileArn": soca_configuration["ComputeNodeInstanceProfileArn"]
                          }
-    dry_run_launch = launch_instance(launch_parameters, dry_run=True)
+    dry_run_launch = can_launch_instance(launch_parameters)
     if dry_run_launch is True:
-        actual_launch = launch_instance(launch_parameters, dry_run=False)
-        if actual_launch is not True:
-            flash(actual_launch, "error")
-            return redirect("/remote_desktop_windows")
+        launch_template = dcv_cloudformation_builder.main(**launch_parameters)
+        if launch_template["success"] is True:
+            cfn_stack_name = str(launch_parameters["cluster_id"] + "-" + launch_parameters["session_name"] + "-" + launch_parameters["user"])
+            cfn_stack_tags = [{"Key": "soca:JobName", "Value": str(launch_parameters["session_name"])},
+                              {"Key": "soca:JobOwner", "Value": str(session["user"])},
+                              {"Key": "soca:JobProject", "Value": "desktop"},
+                              {"Key": "soca:ClusterId", "Value": str(launch_parameters["cluster_id"])},
+                              {"Key": "soca:NodeType", "Value": "dcv"},
+                              {"Key": "soca:DCVSystem", "Value": "windows"}]
+            try:
+                client_cfn.create_stack(
+                    StackName=cfn_stack_name,
+                    TemplateBody=launch_template["output"],
+                    Tags=cfn_stack_tags)
+            except Exception as e:
+                logger.error(f"Error while trying to provision {cfn_stack_name} due to {e}")
+                flash(f"Error while trying to provision {cfn_stack_name} due to {e}")
+                return redirect("/remote_desktop_windows")
         else:
-            if str(soca_configuration["DefaultMetricCollection"]).lower() == "true":
-                # invoke lambda function for tracking
-                payload = {}
-                payload['DesiredCapacity'] = '1'
-                payload['InstanceType'] = instance_type
-                payload['Efa'] = "false"
-                payload['ScratchSize'] = "false"
-                payload['RootSize'] = str(parameters["disk_size"])
-                payload['SpotPrice'] = "false"
-                payload['BaseOS'] = "windows"
-                payload['StackUUID'] = session_uuid
-                payload['KeepForever'] = "false"
-                payload['FsxLustre'] = "false"
-                payload['TerminateWhenIdle'] = "false"
-                payload['DCV'] = "windows"
-                #client_lambda.invoke(soca_configuration['SolutionMetricLambda'], payload=payload)
-                pass
+            flash(launch_template["output"], "error")
+            return redirect("/remote_desktop_windows")
     else:
         flash(dry_run_launch, "error")
         return redirect("/remote_desktop_windows")
@@ -459,6 +445,7 @@ def delete():
                                                        is_active=True).first()
     if check_session:
         instance_id = check_session.session_instance_id
+        session_name = check_session.session_name
         if action == "hibernate":
             # Hibernate instance
             try:
@@ -485,18 +472,16 @@ def delete():
 
         else:
             # Terminate instance
+            stack_name = str(read_secretmanager.get_soca_configuration()["ClusterId"] + "-" + session_name + "-" + session["user"])
             try:
-                client_ec2.terminate_instances(InstanceIds=[instance_id], DryRun=True)
+                client_cfn.delete_stack(StackName=stack_name)
+                flash("Your graphical session is about to be terminated.", "success")
+                check_session.is_active = False
+                check_session.deactivated_on = datetime.utcnow()
+                db.session.commit()
+                return redirect("/remote_desktop_windows")
             except ClientError as e:
-                if e.response['Error'].get('Code') == 'DryRunOperation':
-                    client_ec2.terminate_instances(InstanceIds=[instance_id])
-                    flash("Your graphical session is about to be terminated.", "success")
-                    check_session.is_active = False
-                    check_session.deactivated_on = datetime.utcnow()
-                    db.session.commit()
-                    return redirect("/remote_desktop_windows")
-                else:
-                    flash("Unable to delete associated instance ({}) due to {}".format(instance_id, e), "error")
+                flash("Unable to delete associated stack ({}) due to {}".format(stack_name, e), "error")
 
     else:
         flash("Unable to retrieve this session", "error")

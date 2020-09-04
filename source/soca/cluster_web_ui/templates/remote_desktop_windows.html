@@ -399,7 +399,7 @@
                                   {% endfor %}
                               {% else %}
                                   <div class="card-header py-3">
-                                      <h6 class="m-0 font-weight-bold text-primary">Your Session #{{ n }}</h6>
+                                      <h6 class="m-0 font-weight-bold text-primary">Windows Session #{{ n }}</h6>
                                   </div>
                                   <div class="card-body">
                                   <form method="post" action="/remote_desktop_windows/create">
@@ -457,6 +457,27 @@
                                               </select>
                                           </div>
                                       </div>
+
+                                    <div class="form-group row">
+                                          <label for="extra" class="col-sm-4 col-form-label">Optional</label>
+                                          <div class="col-sm-8">
+                                             <button class="btn btn-info btn-sm" type="button" data-toggle="collapse" data-target="#advancedOptions{{ n }}" aria-expanded="false">
+                                                 View Advanced Options
+                                            </button>
+                                          </div>
+                                      </div>
+
+                                      <div class="collapse" id="advancedOptions{{ n }}">
+                                          <br>
+                                          <div>
+                                               <div class="form-group">
+                                                   <input id="subnet_id" placeholder="VPC Subnet" class="form-control" type="text"  name="subnet_id">
+                                                   <small id="subnet_id" class="form-text text-muted">Launch your capacity in a specific subnet</small>
+                                               </div>
+                                          </div>
+                                          <br>
+                                      </div>
+
                                      <div align="center">
                                          <hr>
                                          <button type="submit"  class="btn btn-primary btn-icon-split">

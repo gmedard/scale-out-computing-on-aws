@@ -498,7 +498,7 @@
                                   {% endfor %}
                               {% else %}
                                   <div class="card-header py-3">
-                                      <h6 class="m-0 font-weight-bold text-primary">Your Session #{{ n }}</h6>
+                                      <h6 class="m-0 font-weight-bold text-primary">Linux Session #{{ n }}</h6>
                                   </div>
                                   <div class="card-body">
                                   <form method="post" action="/remote_desktop/create">
@@ -519,8 +519,8 @@
                                           <div class="col-sm-8">
                                               <select class="form-control" name='instance_ami' id="instance_ami">
                                                   <option selected value="base">Base (No Software)</option>
-                                                    {% for ami_label, ami_id in ami_list.items() %}
-                                                      <option value="{{ ami_id }}">{{ ami_label }} ({{ ami_id }})</option>
+                                                    {% for ami_label, ami_info in ami_list.items() %}
+                                                      <option value="{{ ami_info.ami_id }},{{ ami_info.ami_base_os }}">{{ ami_label }} ({{ ami_id }})</option>
                                                   {% endfor %}
                                               </select>
                                           </div>
@@ -554,6 +554,25 @@
                                                   <option value="true">Yes</option>
                                               </select>
                                           </div>
+                                      </div>
+                                     <div class="form-group row">
+                                          <label for="extra" class="col-sm-4 col-form-label">Optional</label>
+                                          <div class="col-sm-8">
+                                             <button class="btn btn-info btn-sm" type="button" data-toggle="collapse" data-target="#advancedOptions{{ n }}" aria-expanded="false">
+                                                 View Advanced Options
+                                            </button>
+                                          </div>
+                                      </div>
+
+                                      <div class="collapse" id="advancedOptions{{ n }}">
+                                          <br>
+                                          <div>
+                                               <div class="form-group">
+                                                   <input id="subnet_id" placeholder="VPC Subnet ID" class="form-control" type="text"  name="subnet_id">
+                                                   <small id="subnet_id" class="form-text text-muted">Launch your capacity in a specific subnet</small>
+                                               </div>
+                                          </div>
+                                          <br>
                                       </div>
                                      <div align="center">
                                          <hr>

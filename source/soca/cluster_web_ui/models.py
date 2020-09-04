@@ -46,6 +46,7 @@ class LinuxDCVSessions(db.Model):
     session_token = db.Column(db.String(255))  # Unique token associated to each session
     session_id = db.Column(db.String(255), nullable=False)  # DCV session ID, default to console for windows
     session_thumbnail = db.Column(db.Text)  # DCV session screenshot
+    session_linux_distribution = db.Column(db.String(255))  # Linux flavor (ALI, centos7, rhel7)
     support_hibernation = db.Column(db.Boolean, nullable=False)  # If EC2 host has hibernation turned on/off
     dcv_authentication_token = db.Column(db.String(255))  # Encrypted authentication token
     is_active = db.Column(db.Boolean)  # If session is active or not

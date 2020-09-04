@@ -6,10 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.5.1] - TBD
 ### Added
+- Users can now launch Windows instances with DCV
+- Users can now configure their DCV sessions based on their own schedule
+- Users can stop/hibernate DCV sessions
+- Users can change the hardware of their DCV sessions after the initial launch
+- Admins can create DCV AMI with pre-configured applications
 
 ### Changed
 - Removed deprecated `soca_aws_infos` hook
 - Fixed an issue that caused the web interface to become unresponsive after an API reset
+- Users can now easily import/export application profiles
+- Fixed an issue that caused Nvidia Tesla drivers to be incorrectly installed on P3 instances
+- Manual_build.py now automatically upload the installer to your S3 bucket
+
 
 ## [2.5.0] - 2020-07-17
 ### Added

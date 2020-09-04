@@ -3,7 +3,7 @@
 # DCV parameters: https://docs.aws.amazon.com/dcv/latest/adminguide/config-param-ref.html
 
 # Stop DCV service
-Stop-Service -Name dcvserver
+# Stop-Service -Name dcvserver
 
 # Edit dcv.conf
 $Hostname = Invoke-RestMethod -uri http://169.254.169.254/latest/meta-data/hostname
@@ -43,7 +43,7 @@ if($AutoLogon -eq "true"){
 }
 
 # Specify Admin user/password on the desktop in case user needs it
-New-Item -Path "~/Desktop/" -Name "ADMIN_PASSWORD.txt" -ItemType "file" -Value "In case you need to use your local administrator account: Username: Administrator and password is %SOCA_LOCAL_ADMIN_PASSWORD%"
+New-Item -Path "~/Desktop/" -Name "ADMIN_PASSWORD.txt" -ItemType "file" -Value "In case you need to use your local administrator account: Username: Administrator and password is %SOCA_LOCAL_ADMIN_PASSWORD%" -Force
 
 # Create Shortcut to SOCA web interface
 $WshShell = New-Object -comObject WScript.Shell
@@ -62,8 +62,6 @@ Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 0 -Force
 Stop-Process -Name Explorer
 
 
-# Restart Computer to validate all Windows changes
-Restart-Computer
-
+# Restart Computer to validate all Windows changes. Use -Force to force reboot even if users are logged in (in case of custom AMI)
+Restart-Computer -Force
 </powershell>
-<persist>true</persist>
