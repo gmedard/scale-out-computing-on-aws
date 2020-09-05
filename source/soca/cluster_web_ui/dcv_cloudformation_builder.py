@@ -22,7 +22,7 @@ class CustomResourceSendAnonymousMetrics(AWSCustomObject):
         "KeepForever": (str, True),
         "TerminateWhenIdle": (str, True),
         "FsxLustre": (str, True),
-        "DCV": (str, True),
+        "Dcv": (str, True),
     }
 
 
@@ -78,7 +78,7 @@ def main(**launch_parameters):
             metrics.FsxLustre = str({"fsx_lustre": "false", "existing_fsx": "false", "s3_backend": "false", "import_path": "false", "export_path": "false",
                                      "deployment_type": "false", "per_unit_throughput": "false", "capacity": 1200})
             metrics.TerminateWhenIdle = "false"
-            metrics.DCV = "true"
+            metrics.Dcv = "true"
             t.add_resource(metrics)
         # End Custom Resource
 

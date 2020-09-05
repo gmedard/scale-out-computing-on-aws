@@ -28,41 +28,68 @@ def now():
     return server_time
 
 
-def retrieve_host(instance_ids, instance_state, operating_system):
+def retrieve_host(instances_info, instance_state):
+    instance_ids = list(instances_info.keys())
+    instance_base_os = list(dict.fromkeys(instances_info.values()))
     host_info = {}
     token = True
     next_token = ''
     while token is True:
-        response = client_ec2.describe_instances(
-            Filters=[
-                {
-                    'Name': "instance-state-name",
-                    'Values': [instance_state]
-                },
-                {
-                    'Name': 'instance-id',
-                    'Values': instance_ids
-                },
-                {
-                    "Name": "tag:soca:ClusterId",
-                    "Values": [os.environ["SOCA_CONFIGURATION"]]
-                },
-                {
-                    "Name": "tag:soca:DCVSupportHibernate",
-                    "Values": ["true", "false"]
-                },
-                {
-                    "Name": "tag:soca:NodeType",
-                    "Values": ["soca-dcv"]
-                },
-                {
-                    "Name": "tag:soca:DCVSystem",
-                    "Values": operating_system
-                }
-            ],
-            MaxResults=1000,
-            NextToken=next_token,
-        )
+        if instances_info:
+            response = client_ec2.describe_instances(
+                Filters=[
+                    {
+                        'Name': "instance-state-name",
+                        'Values': [instance_state]
+                    },
+                    {
+                        'Name': 'instance-id',
+                        'Values': instance_ids
+                    },
+                    {
+                        "Name": "tag:soca:ClusterId",
+                        "Values": [os.environ["SOCA_CONFIGURATION"]]
+                    },
+                    {
+                        "Name": "tag:soca:DCVSupportHibernate",
+                        "Values": ["true", "false"]
+                    },
+                    {
+                        "Name": "tag:soca:NodeType",
+                        "Values": ["dcv"]
+                    },
+                    {
+                        "Name": "tag:soca:DCVSystem",
+                        "Values": instance_base_os
+                    }
+                ],
+                MaxResults=1000,
+                NextToken=next_token,
+            )
+        else:
+            # get all stopped dcv instances
+            response = client_ec2.describe_instances(
+                Filters=[
+                    {
+                        'Name': "instance-state-name",
+                        'Values': ["stopped"]
+                    },
+                    {
+                        "Name": "tag:soca:ClusterId",
+                        "Values": [os.environ["SOCA_CONFIGURATION"]]
+                    },
+                    {
+                        "Name": "tag:soca:DCVSupportHibernate",
+                        "Values": ["true", "false"]
+                    },
+                    {
+                        "Name": "tag:soca:NodeType",
+                        "Values": ["dcv"]
+                    }
+                ],
+                MaxResults=1000,
+                NextToken=next_token,
+            )
 
         try:
             next_token = response['NextToken']
@@ -94,11 +121,11 @@ def retrieve_host(instance_ids, instance_state, operating_system):
     return host_info
 
 
-def windows_auto_stop_instance(instances_ids_to_check):
+def windows_auto_stop_instance(instances_to_check):
     # Automatically stop or hibernate (when possible) instances based on Idle time and CPU usage
     with db.app.app_context():
-        logger.info(f"Scheduled Task: windows_auto_stop_instance {instances_ids_to_check}")
-        get_host_to_stop = retrieve_host(instances_ids_to_check, "running", ["windows"])
+        logger.info(f"Scheduled Task: windows_auto_stop_instance {instances_to_check}")
+        get_host_to_stop = retrieve_host(instances_to_check, "running")
         logger.info("windows_auto_stop_instance: List of DCV hosts subject to stop/hibernate {}".format(get_host_to_stop))
         for instance_id, instance_data in get_host_to_stop.items():
             if instance_data["hibernate_enabled"] is True:
@@ -133,10 +160,9 @@ def windows_auto_stop_instance(instances_ids_to_check):
                                                                     Parameters={"commands": powershell_commands},
                                                                     TimeoutSeconds=30)
                     except ClientError as e:
-                        logger.error("Unable to query SSM for {} : {}".format(instance_id, e))
+                        logger.error("windows_auto_stop_instance: Unable to query SSM for {} : {}".format(instance_id, e))
                         if "InvalidInstanceId" in str(e):
-                            logger.error(
-                                "windows_auto_stop_instance: Instance is not in Running state or SSM daemon is not running. This instance is probably still starting up ...")
+                            logger.error("windows_auto_stop_instance: Instance is not in Running state or SSM daemon is not running. This instance is probably still starting up ...")
                         ssm_failed = True
 
                     if ssm_failed is False:
@@ -192,7 +218,7 @@ def windows_auto_stop_instance(instances_ids_to_check):
                                                 if check_session:
                                                     check_session.session_state = "stopped"
                                                     db.session.commit()
-                                                    logger.info("DB entry updated")
+                                                    logger.info("windows_auto_stop_instance: DB entry updated")
                                                 else:
                                                     logger.error("windows_auto_stop_instance: Instance ({}) has been stopped but could not find associated database entry".format(instance_id), "error")
                                             except Exception as e:
@@ -209,11 +235,11 @@ def windows_auto_stop_instance(instances_ids_to_check):
                         logger.error("windows_auto_stop_instance: SSM failed for {} with ssm_id {}".format(instance_id, ssm_command_id))
 
 
-def linux_auto_stop_instance(instances_ids_to_check):
+def linux_auto_stop_instance(instances_to_check):
     # Automatically stop or hibernate (when possible) instances based on Idle time and CPU usage
     with db.app.app_context():
-        logger.info(f"Scheduled Task: linux_auto_stop_instance {instances_ids_to_check}")
-        get_host_to_stop = retrieve_host(instances_ids_to_check, "running", ["linux"])
+        logger.info(f"Scheduled Task: linux_auto_stop_instance {instances_to_check}")
+        get_host_to_stop = retrieve_host(instances_to_check, "running")
         logger.info("linux_auto_stop_instance: List of DCV hosts subject to stop/hibernate {}".format(get_host_to_stop))
         for instance_id, instance_data in get_host_to_stop.items():
             if instance_data["hibernate_enabled"] is True:
@@ -328,7 +354,7 @@ def auto_terminate_stopped_instance():
                 terminate_stopped_instance_after = config.Config.DCV_LINUX_TERMINATE_STOPPED_SESSION
 
             if terminate_stopped_instance_after > 0:
-                get_host_to_terminate = retrieve_host([], "stopped", ["windows", "linux"])
+                get_host_to_terminate = retrieve_host({}, "stopped")
                 logger.info("List of hosts that are subject to termination if stopped for more than {} hours: {}".format(terminate_stopped_instance_after, get_host_to_terminate))
                 for instance_id, time_info in get_host_to_terminate.items():
                     if (time_info["stopped_time"] + timedelta(hours=terminate_stopped_instance_after)) < time_info["current_time"]:
@@ -385,9 +411,9 @@ def schedule_auto_start():
                                                         getattr(LinuxDCVSessions, "session_state") == "stopped").all()
 
         logger.info(all_sessions)
-        logger.info("Checking is any instance is stopped but must be running on {} after {}".format(current_day, format_hour))
+        logger.info("schedule_auto_start: Checking is any instance is stopped but must be running on {} after {}".format(current_day, format_hour))
         for session in all_sessions:
-            logger.info(f"Detected {session}")
+            logger.info(f"schedule_auto_start: Detected {session}")
             instance_id = session.session_instance_id
             try:
                 client_ec2.start_instances(InstanceIds=[instance_id], DryRun=True)
@@ -399,9 +425,9 @@ def schedule_auto_start():
                         db.session.commit()
                         logger.error(f"Started {instance_id}")
                     except Exception as err:
-                        logger.error(f"Unable to restart instance ({instance_id}) due to {err}")
+                        logger.error(f"schedule_auto_start: Unable to restart instance ({instance_id}) due to {err}")
                 else:
-                    logger.error(f"Unable to restart instance ({instance_id}) due to {e}")
+                    logger.error(f"schedule_auto_start: Unable to restart instance ({instance_id}) due to {e}")
 
 
 def schedule_auto_stop():
@@ -412,7 +438,7 @@ def schedule_auto_stop():
     current_day = days_human_format[current_time.isoweekday()]
     format_hour = (current_hour * 60) + current_minute
     for distribution in ["windows", "linux"]:
-        instances_ids_to_check = []
+        instances_ids_to_check = {}
         logger.info(f"Scheduled Task: schedule_auto_stop for  {distribution}")
         column_start_hour = "schedule_" + current_day + "_start"
         column_stop_hour = "schedule_" + current_day + "_stop"
@@ -443,10 +469,13 @@ def schedule_auto_stop():
                                                                  getattr(LinuxDCVSessions, "session_state") == "running").all()
 
 
-            logger.info(f"Checking is any instance is running but must be stopped on {current_day} after {format_hour}")
+            logger.info(f"schedule_auto_stop: Checking is any instance is running but must be stopped on {current_day} after {format_hour}")
             for session in all_sessions:
-                logger.info(f"Detected {session}")
-                instances_ids_to_check.append(session.session_instance_id)
+                logger.info(f"schedule_auto_stop: Detected {session}")
+                if distribution == "windows":
+                    instances_ids_to_check[session.session_instance_id] = "windows"
+                else:
+                    instances_ids_to_check[session.session_instance_id] = session.session_linux_distribution
 
         if distribution == "windows":
             windows_auto_stop_instance(instances_ids_to_check)
