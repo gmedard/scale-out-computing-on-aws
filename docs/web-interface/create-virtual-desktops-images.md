@@ -1,5 +1,5 @@
 ---
-title: Create DCV images for Windows/Linux
+title: Create Virtual Desktop Images for Windows/Linux
 ---
 
 !!!configuration "Feature in preview"
