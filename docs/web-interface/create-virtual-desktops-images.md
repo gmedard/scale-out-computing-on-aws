@@ -81,6 +81,4 @@ You can now launch your session with a pre-configured image.
 
 ## Linux
 
-Creating Linux images are not necessary as Linux is able to mount persistent partitions such as `/apps` and `/data`. You can then load your application directly from these locations.
-
-
+[Refer to this article to learn how to create Linux images](../../tutorials/reduce-compute-node-launch-time-with-custom-ami/)

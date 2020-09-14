@@ -256,6 +256,7 @@ Resources:
       Code:
         ZipFile: !Sub |
           import cfnresponse
+          import re
           '''
           Check SOCA Pre-Requisite
           '''
@@ -263,6 +264,7 @@ Resources:
           def lambda_handler(event, context):
             region = event['ResourceProperties']['Region']
             stack_name = event['ResourceProperties']['StackName']
+            clusterIdPrefix = event['ResourceProperties']['ClusterIdPrefix']
             regions_blacklist = ['us-west-1'] # only 2 AZ
 
             if region in regions_blacklist:
@@ -270,18 +272,18 @@ Resources:
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
 
+            # Strip clusterIdPrefix (soca) from front of Stackname to prevent things like "soca-soca-"
+            stack_name = re.sub(r'^' + clusterIdPrefix + r'[-]?', r'', stack_name, flags=re.IGNORECASE)
+
             if stack_name.__len__() > 20:
               error_message = 'Please use a stack name smaller than 20 characters'
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
 
-            stack_name_has_caps = any(c.isupper() for c in stack_name)
-            if stack_name_has_caps is True:
-              error_message = 'Do not use any uppercase in the stack name'
-              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
-              return error_message
+            clusterId = clusterIdPrefix + '-' + stack_name
+            clusterIdLC = clusterId.lower()
 
-            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, 'Pre-Requisites OK')
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {'ClusterId': clusterId, 'ClusterIdLC': clusterIdLC}, 'Pre-Requisites OK')
 
   CheckSOCAPreRequisite:
     DependsOn: CheckPreRequisiteLambda
@@ -290,6 +292,7 @@ Resources:
       ServiceToken: !GetAtt CheckPreRequisiteLambda.Arn
       Region: !Ref "AWS::Region"
       StackName: !Ref "AWS::StackName"
+      ClusterIdPrefix: !FindInMap [ Info, Data, ClusterIdPrefix ]
   # ============ END PRE-REQUISITE ============ #
 
   Network:
@@ -298,7 +301,7 @@ Resources:
     Properties:
       Parameters:
         VpcCidr: !Ref VpcCidr
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
       TimeoutInMinutes: 30
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Network.template"] ]
 
@@ -309,7 +312,7 @@ Resources:
       Parameters:
         VpcId: !GetAtt Network.Outputs.VpcId
         ClientIp: !Ref ClientIp
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         S3InstallBucket: !Ref S3InstallBucket
         S3InstallFolder: !Ref S3InstallFolder
         SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
@@ -346,7 +349,7 @@ Resources:
         S3InstallFolder: !Ref S3InstallFolder
         S3Bucket: !Ref S3InstallBucket
         Version: !FindInMap [ Info, Data, Version ]
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         EFSDataDns: !GetAtt Storage.Outputs.EFSDataDns
         EFSAppsDns: !GetAtt Storage.Outputs.EFSAppsDns
         ImageId: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
@@ -365,7 +368,8 @@ Resources:
       Parameters:
         SchedulerSecurityGroup: !GetAtt Security.Outputs.SchedulerSecurityGroup
         PublicSubnet1: !GetAtt Network.Outputs.PublicSubnet1
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
+        ClusterIdLC: !GetAtt CheckSOCAPreRequisite.ClusterIdLC
         ClientIp: !Ref ClientIp
         SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
         EIPNat: !GetAtt Network.Outputs.EIPNat
@@ -382,7 +386,7 @@ Resources:
         PublicSubnet1: !GetAtt Network.Outputs.PublicSubnet1
         PublicSubnet2: !GetAtt Network.Outputs.PublicSubnet2
         PublicSubnet3: !GetAtt Network.Outputs.PublicSubnet3
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         VpcId: !GetAtt Network.Outputs.VpcId
         SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId
         SchedulerIAMRole: !GetAtt Security.Outputs.SchedulerIAMRole
@@ -420,7 +424,7 @@ Resources:
         S3InstallFolder: !Ref S3InstallFolder
         Version: !FindInMap [ Info, Data, Version ]
         S3Bucket: !Ref S3InstallBucket
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         SSHKeyPair: !Ref SSHKeyPair
         ImageId: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
         ESDomainEndpoint: !GetAtt Analytics.Outputs.ESDomainEndpoint

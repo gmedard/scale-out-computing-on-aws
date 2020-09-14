@@ -315,7 +315,7 @@ def create():
     user_data = user_data_script.read()
     user_data_script.close()
     user_data = user_data.replace("%SOCA_LOCAL_ADMIN_PASSWORD%", session_local_admin_password)
-    user_data = user_data.replace("%SOCA_SchedulerPrivateIP%", soca_configuration['SchedulerPrivateIP'] + ":8443")
+    user_data = user_data.replace("%SOCA_SchedulerPrivateIP%", soca_configuration['SchedulerPrivateIP'] + ":" + str(config.Config.FLASK_PORT))
     user_data = user_data.replace("%SOCA_LoadBalancerDNSName%", soca_configuration['LoadBalancerDNSName'])
     if config.Config.DCV_WINDOWS_AUTOLOGON is True:
         user_data = user_data.replace("%SOCA_WINDOWS_AUTOLOGON%", "true")
@@ -389,8 +389,6 @@ def create():
         return redirect("/remote_desktop_windows")
 
     flash("Your session has been initiated. It will be ready within 10 minutes.", "success")
-    default_session_schedule_start = 480  # 8 AM
-    default_session_schedule_stop = 1140  # 7 PM
     new_session = WindowsDCVSessions(user=session["user"],
                                      session_number=parameters["session_number"],
                                      session_name=session_name,
@@ -406,18 +404,18 @@ def create():
                                      is_active=True,
                                      support_hibernation=parameters["hibernate"],
                                      created_on=datetime.utcnow(),
-                                     schedule_monday_start=default_session_schedule_start,
-                                     schedule_tuesday_start=default_session_schedule_start,
-                                     schedule_wednesday_start=default_session_schedule_start,
-                                     schedule_thursday_start=default_session_schedule_start,
-                                     schedule_friday_start=default_session_schedule_start,
+                                     schedule_monday_start=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_START,
+                                     schedule_tuesday_start=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_START,
+                                     schedule_wednesday_start=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_START,
+                                     schedule_thursday_start=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_START,
+                                     schedule_friday_start=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_START,
                                      schedule_saturday_start=0,
                                      schedule_sunday_start=0,
-                                     schedule_monday_stop=default_session_schedule_stop,
-                                     schedule_tuesday_stop=default_session_schedule_stop,
-                                     schedule_wednesday_stop=default_session_schedule_stop,
-                                     schedule_thursday_stop=default_session_schedule_stop,
-                                     schedule_friday_stop=default_session_schedule_stop,
+                                     schedule_monday_stop=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_STOP,
+                                     schedule_tuesday_stop=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_STOP,
+                                     schedule_wednesday_stop=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_STOP,
+                                     schedule_thursday_stop=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_STOP,
+                                     schedule_friday_stop=config.Config.DCV_WINDOWS_DEFAULT_SCHEDULE_STOP,
                                      schedule_saturday_stop=0,
                                      schedule_sunday_stop=0,
 

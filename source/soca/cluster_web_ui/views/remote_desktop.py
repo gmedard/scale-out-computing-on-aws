@@ -324,12 +324,11 @@ if [[ "''' + base_os + '''" == "amazonlinux2" ]];
 fi
     
 GET_INSTANCE_TYPE=$(curl http://169.254.169.254/latest/meta-data/instance-type)
-echo export "SOCA_DCV_AUTHENTICATOR="https://''' + soca_configuration['SchedulerPrivateDnsName'] + ''':8443/api/dcv/authenticator"" >> /etc/environment
+echo export "SOCA_DCV_AUTHENTICATOR="https://''' + soca_configuration['SchedulerPrivateDnsName'] + ''':''' + config.Config.FLASK_PORT + '''/api/dcv/authenticator"" >> /etc/environment
 echo export "SOCA_DCV_SESSION_ID="''' + str(session_uuid) +'''"" >> /etc/environment
 echo export "SOCA_CONFIGURATION="''' + str(soca_configuration['ClusterId']) + '''"" >> /etc/environment
 echo export "SOCA_DCV_OWNER="''' + str(session["user"]) + '''"" >> /etc/environment
 echo export "SOCA_BASE_OS="''' + str(base_os) + '''"" >> /etc/environment
-echo export "SOCA_JOB_QUEUE="dcv"" >> /etc/environment
 echo export "SOCA_JOB_TYPE="dcv"" >> /etc/environment
 echo export "SOCA_SCRATCH_SIZE=''' + str(parameters['disk_size']) + '''" >> /etc/environment
 echo export "SOCA_INSTALL_BUCKET="''' + str(soca_configuration['S3Bucket']) + '''"" >> /etc/environment
@@ -467,8 +466,6 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
         return redirect("/remote_desktop")
 
     flash("Your session has been initiated. It will be ready within 10 minutes.", "success")
-    default_session_schedule_start = 480  # 8 AM
-    default_session_schedule_stop = 1140  # 7 PM
     new_session = LinuxDCVSessions(user=session["user"],
                                    session_number=parameters["session_number"],
                                    session_name=session_name,
@@ -484,18 +481,18 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                                    is_active=True,
                                    support_hibernation=parameters["hibernate"],
                                    created_on=datetime.utcnow(),
-                                   schedule_monday_start=default_session_schedule_start,
-                                   schedule_tuesday_start=default_session_schedule_start,
-                                   schedule_wednesday_start=default_session_schedule_start,
-                                   schedule_thursday_start=default_session_schedule_start,
-                                   schedule_friday_start=default_session_schedule_start,
+                                   schedule_monday_start=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_START,
+                                   schedule_tuesday_start=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_START,
+                                   schedule_wednesday_start=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_START,
+                                   schedule_thursday_start=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_START,
+                                   schedule_friday_start=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_START,
                                    schedule_saturday_start=0,
                                    schedule_sunday_start=0,
-                                   schedule_monday_stop=default_session_schedule_stop,
-                                   schedule_tuesday_stop=default_session_schedule_stop,
-                                   schedule_wednesday_stop=default_session_schedule_stop,
-                                   schedule_thursday_stop=default_session_schedule_stop,
-                                   schedule_friday_stop=default_session_schedule_stop,
+                                   schedule_monday_stop=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_STOP,
+                                   schedule_tuesday_stop=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_STOP,
+                                   schedule_wednesday_stop=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_STOP,
+                                   schedule_thursday_stop=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_STOP,
+                                   schedule_friday_stop=config.Config.DCV_LINUX_DEFAULT_SCHEDULE_STOP,
                                    schedule_saturday_stop=0,
                                    schedule_sunday_stop=0,
                                    )

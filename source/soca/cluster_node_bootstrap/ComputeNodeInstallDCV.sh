@@ -92,6 +92,7 @@ systemctl disable firewalld
 systemctl isolate graphical.target
 
 dcv create-session --owner $SOCA_DCV_OWNER $SOCA_DCV_SESSION_ID
+echo "Running command: dcv create-session --owner $SOCA_DCV_OWNER $SOCA_DCV_SESSION_ID"
 sleep 5
 echo "@reboot dcv create-session --owner $SOCA_DCV_OWNER $SOCA_DCV_SESSION_ID" | crontab -
 

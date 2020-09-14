@@ -133,7 +133,12 @@ def send_job():
 
     for param in request.form:
         if param != "csrf_token":
-            job_to_submit = job_to_submit.replace("%" + param + "%", request.form[param])
+            if param.lower() == "user":
+                job_to_submit = job_to_submit.replace("%" + param + "%", session["user"])
+            elif param == "HOME":
+                job_to_submit = job_to_submit.replace("%" + param + "%", config.Config.USER_HOME + "/" + session["user"])
+            else:
+                job_to_submit = job_to_submit.replace("%" + param + "%", request.form[param])
 
 
     payload = base64.b64encode(job_to_submit.encode()).decode()

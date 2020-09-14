@@ -494,6 +494,7 @@ Resources:
                   - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/s3.data-source.lustre.fsx.amazonaws.com/*"] ]
                   - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/autoscaling.amazonaws.com/*"] ]
                   - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/spotfleet.amazonaws.com/*"] ]
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/fsx.amazonaws.com/*"] ]
 
               - Effect: Allow
                 Action:

@@ -43,7 +43,7 @@ You can either access your desktop directly via your browser (Option1) or use th
 ### Example of Windows desktop
 
 !!!danger "Important"
-    Unlike Linux desktops, Windows desktop are not connected to the scheduler and you cannot submit jobs directly from your Windows system.
+    Unlike Linux desktops, Windows desktops are not connected to the scheduler and you cannot submit jobs directly from your Windows system.
     
     To submit a job via Windows, [you first need to access the web ui then submit a job via HTTP endpoint](../../web-interface/submit-hpc-jobs-web-based-interface/#submit-a-test-job) or [via the HTTP REST API](../../web-interface/control-hpc-job-with-http-web-rest-api/)
 
@@ -84,6 +84,9 @@ You can configure three type of schedule for your desktop:
 
 !!!info 
     If you manually start your desktop during off hours, your session will be up and running until it becomes idle. Idle time can be customized by cluster admins.
+    
+!!!danger "Schedule and Timezone"
+    By default, SOCA is configured to use UTC timezone and this may be a problem if you are currently using a different timezone. To fix that, you can adjust your local timezone on `config.py` (then restart the web ui)
 
 ## Update your hardware requirements on the fly
 

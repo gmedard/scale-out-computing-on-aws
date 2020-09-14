@@ -67,6 +67,8 @@ class Config(object):
     DCV_LINUX_HIBERNATE_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be hibernated to save cost if there is no active connection within the time specified. 0 to disable
     DCV_LINUX_STOP_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
     DCV_LINUX_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Windows DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
+    DCV_LINUX_DEFAULT_SCHEDULE_START = 480  # 8 AM
+    DCV_LINUX_DEFAULT_SCHEDULE_STOP = 1140  # 7PM
 
     # DCV Windows
     DCV_WINDOWS_SESSION_COUNT = 4
@@ -75,6 +77,8 @@ class Config(object):
     DCV_WINDOWS_STOP_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
     DCV_WINDOWS_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Windows DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
     DCV_WINDOWS_AUTOLOGON = True  # enable or disable autologon. If disabled user will have to manually input Windows password
+    DCV_WINDOWS_DEFAULT_SCHEDULE_START = 480  # 8 AM
+    DCV_WINDOWS_DEFAULT_SCHEDULE_STOP = 1140  # 7PM
     DCV_WINDOWS_AMI = {"graphics": {"us-east-1": "ami-035a352d4d53371dc",
                                     "us-east-2": "ami-0e513ab3dde457471",
                                     "us-west-1": "ami-0a7cc05863d8c367c",
