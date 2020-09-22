@@ -330,6 +330,7 @@ Resources:
     Properties:
       Parameters:
         VpcId: !GetAtt Network.Outputs.VpcId
+        VpcCidr: !Ref VpcCidr
         SocaDomain: 'soca.local'
         HostedZoneId: !GetAtt Network.Outputs.HostedZoneId
         AL2ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", amazonlinux2]
@@ -434,7 +435,6 @@ Resources:
     Properties:
       Parameters:
         SocaDomain: 'soca.local'
-        ProxyPrivateIP: !GetAtt Security.Outputs.ProxyPrivateIP
         ProxyPrivateDnsName: !GetAtt Security.Outputs.ProxyPrivateDnsName
         NoProxy: !GetAtt Security.Outputs.NoProxy
         SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId

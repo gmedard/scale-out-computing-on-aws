@@ -1,7 +1,0 @@
-#!/usr/bin/env python3
-
-from troposphere.template_generator import TemplateGenerator import json, yaml
-
-with open(“myCloudFormationTemplate.json”) as f:
-json_template = json.load(f)
-template = TemplateGenerator(json_template) template.to_json()

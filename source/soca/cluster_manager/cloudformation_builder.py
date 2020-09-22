@@ -87,7 +87,7 @@ source /etc/proxy.sh
 
 cat <<EOF > /etc/yum.repos.d/10_proxy.conf
 [main]
-proxy=http://''' + params['ProxyPrivateDnsName'] + '''proxyserver:3128/
+proxy=http://''' + params['ProxyPrivateDnsName'] + ''':3128/
 EOF
 
 export PATH=$PATH:/usr/local/bin

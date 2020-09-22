@@ -3,6 +3,9 @@ Description: (SOCA) - Manage security stack.
 Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
+    
+  VpcCidr:
+    Type: String
   
   SocaDomain:
     Type: String
@@ -1490,10 +1493,8 @@ Outputs:
   ComputeNodeSecurityGroup:
     Value: !GetAtt ComputeNodeSecurityGroup.GroupId
   LambdaACMIAMRoleArn:
-    Value: !GetAtt LambdaACMIAMRole.Arn
-  ProxyPrivateIP:
-    Value: !GetAtt ProxyEC2Instance.PrivateIp
+    Value: !GetAtt LambdaACMIAMRole.
   ProxyPrivateDnsName:
     Value: !Sub "proxy.${SocaDomain}"
   NoProxy:
-    Value: !Sub "localhost,127.0.0.1,169.254.169.254,169.254.170.2,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,s3.${AWS::Region}.amazonaws.com"
+    Value: !Sub "localhost,127.0.0.1,169.254.169.254,169.254.170.2,${VpcCidr},s3.${AWS::Region}.amazonaws.com"

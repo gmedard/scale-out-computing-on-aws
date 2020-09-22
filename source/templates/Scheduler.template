@@ -120,6 +120,11 @@ Resources:
             EOF
             source /etc/profile.d/proxy.sh
 
+            cat <<EOF > /etc/yum.repos.d/10_proxy.conf
+            [main]
+            proxy=http://${ProxyPrivateDnsName}:3128/
+            EOF
+
             export PATH=$PATH:/usr/local/bin
             # Deactivate shell to make sure users won't access the cluster if it's not ready
             echo '

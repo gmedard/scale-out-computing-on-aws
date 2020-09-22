@@ -25,9 +25,6 @@ Parameters:
   SocaDomain:
     Type: String
 
-  ProxyPrivateIP:
-    Type: String
-
   ProxyPrivateDnsName:
     Type: String
 
@@ -226,7 +223,6 @@ Resources:
       "PrivateSubnet2": "${PrivateSubnet2}",
       "PrivateSubnet3": "${PrivateSubnet3}",
       "SocaDomain": "${SocaDomain}",
-      "ProxyPrivateIP": "${ProxyPrivateIP}",
       "ProxyPrivateDnsName": "${ProxyPrivateDnsName}",
       "NoProxy": "${NoProxy}",
       "SchedulerPrivateIP": "${SchedulerPrivateIP}",
