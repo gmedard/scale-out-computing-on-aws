@@ -446,27 +446,12 @@ Resources:
               VolumeSize: 10
               VolumeType: gp2
               Encrypted: true
-
         KeyName: !Ref SSHKeyPair
-
         NetworkInterfaces:
           - AssociatePublicIpAddress: "true"
             DeviceIndex: "0"
             GroupSet: 
               - !Ref BastionSecurityGroup
-
-        Tags:
-          - Key: Name
-            Value: !Sub ${ClusterId}-Bastion
-          - Key: soca:KeepForever
-            Value: true
-          - Key: soca:ClusterId
-            Value: !Sub ${ClusterId}
-          - Key: soca:NodeType
-            Value: bastion
-          - Key: soca:BackupPlan
-            Value: !Sub ${ClusterId}
-        
         UserData:
           "Fn::Base64": !Sub |
             #!/bin/bash -xe
@@ -491,7 +476,7 @@ Resources:
   #     DesiredCapacity: "1"
   #     MaxSize: "1"
   #     HealthCheckGracePeriod: 300
-  #     HealthCheckType: EC2
+  #     HealthCheckType: ELB
   #     LaunchTemplate:
   #         LaunchTemplateId: !Ref BastionLaunchTemplate
   #         Version: !GetAtt BastionLaunchTemplate.LatestVersionNumber
@@ -503,11 +488,8 @@ Resources:
   #     Tags: 
   #       - Key: soca:ClusterId
   #         Value: !Sub ${ClusterId}
-
-      # LoadBalancerNames: 
-      #   - String
-      # TargetGroupARNs: 
-      #   - String
+  #     TargetGroupARNs: 
+  #       - !Ref BastionNLBTargetGroup
 
   #============================================================================
   # Proxy server
@@ -1668,6 +1650,8 @@ Outputs:
     Value: !GetAtt ComputeNodeSecurityGroup.GroupId
   LambdaACMIAMRoleArn:
     Value: !GetAtt LambdaACMIAMRole.Arn
+  BastionDnsName:
+    Value: !GetAtt BastionNLB.DNSName
   ProxyPrivateDnsName:
     Value: !Sub "proxy.${SocaDomain}"
   NoProxy:
