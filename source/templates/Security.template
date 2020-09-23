@@ -350,6 +350,16 @@ Resources:
         - Key: soca:ClusterId
           Value: !Sub ${ClusterId}
 
+  BastionNLBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions: 
+        - Type: forward
+          TargetGroupArn: !Ref BastionNLBTargetGroup
+      LoadBalancerArn: !Ref BastionNLB
+      Port: 22
+      Protocol: TCP
+
   BastionIAMRole:
     Type: AWS::IAM::Role
     Properties:
