@@ -344,7 +344,7 @@ Resources:
       HealthCheckEnabled: true
       HealthCheckIntervalSeconds: 30
       HealthCheckTimeoutSeconds: 20
-      HealthyThresholdCount: 
+      HealthyThresholdCount: 3
       UnhealthyThresholdCount: 3
       VpcId: !Ref VpcId
       Tags:
