@@ -330,6 +330,15 @@ Resources:
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
         - !Ref PublicSubnet3
+      LoadBalancerAttributes:
+        - Key: load_balancing.cross_zone.enabled
+          Value: true
+        # - Key: access_logs.s3.enabled
+        #   Value: true
+        # - Key: access_logs.s3.bucket
+        #   Value: !Sub "${S3InstallBucket}"
+        # - Key: access_logs.s3.prefix
+        #   Value: !Sub "${S3InstallFolder}/BastionNLBLogs"
       Tags:
         - Key: soca:ClusterId
           Value: !Sub ${ClusterId}
@@ -426,7 +435,7 @@ Resources:
     Properties:
       IpProtocol: tcp
       FromPort: 22
-      ToPort: 2222
+      ToPort: 22
       CidrIp: !Ref ClientIp
       GroupId: !GetAtt BastionSecurityGroup.GroupId
       Description: "ClientIp"
@@ -623,6 +632,17 @@ Resources:
       GroupId: !GetAtt ProxySecurityGroup.GroupId
       Description: "Scheduler"
 
+  ProxyInboundRuleAllowBastion:
+    Condition: HasClientIp
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      SourceSecurityGroupId: !GetAtt BastionSecurityGroup.GroupId
+      GroupId: !GetAtt ProxySecurityGroup.GroupId
+      Description: "Scheduler"
+
   ProxyInboundRuleAllowClientIP:
     Condition: HasClientIp
     Type: AWS::EC2::SecurityGroupIngress
@@ -758,6 +778,17 @@ Resources:
       SourceSecurityGroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
       GroupId: !GetAtt SchedulerSecurityGroup.GroupId
       Description: "Allow all traffic between scheduler and compute nodes"
+
+  SchedulerInboundRuleAllowBastionSSH:
+    Condition: HasClientIp
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      SourceSecurityGroupId: !GetAtt BastionSecurityGroup.GroupId
+      GroupId: !GetAtt SchedulerSecurityGroup.GroupId
+      Description: "Allow SSH traffic from client IP to master host"
 
   SchedulerInboundRuleAllowClientIPSSH:
     Condition: HasClientIp
@@ -932,6 +963,16 @@ Resources:
       SourceSecurityGroupId: !GetAtt SchedulerSecurityGroup.GroupId
       GroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
       Description: "Allow traffic between Master agent and compute nodes"
+
+  ComputeNodeInboundRuleBastionSSH:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      SourceSecurityGroupId: !GetAtt BastionSecurityGroup.GroupId
+      GroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
+      Description: "Scheduler"
 
   ComputeNodeInboundRuleSchedulerSSH:
     Type: AWS::EC2::SecurityGroupIngress
