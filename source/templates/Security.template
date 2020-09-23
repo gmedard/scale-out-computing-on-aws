@@ -399,38 +399,38 @@ Resources:
       Roles:
         - !Ref BastionIAMRole
 
-  # BastionSecurityGroup:
-  #   Type: AWS::EC2::SecurityGroup
-  #   Properties:
-  #     VpcId: !Ref VpcId
-  #     GroupDescription: SG For Bastion Host
-  #     Tags:
-  #       - Key: Name
-  #         Value: !Sub ${ClusterId}-BastionSG
-  #       - Key: soca:ClusterId
-  #         Value: !Ref ClusterId
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: SG For Bastion Host
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterId}-BastionSG
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
 
-  # BastionIngressClientIpSSH:
-  #   Condition: HasClientIp
-  #   Type: AWS::EC2::SecurityGroupIngress
-  #   Properties:
-  #     IpProtocol: tcp
-  #     FromPort: 22
-  #     ToPort: 2222
-  #     CidrIp: !Ref ClientIp
-  #     GroupId: !GetAtt BastionSecurityGroup.GroupId
-  #     Description: "ClientIp"
+  BastionIngressClientIpSSH:
+    Condition: HasClientIp
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 2222
+      CidrIp: !Ref ClientIp
+      GroupId: !GetAtt BastionSecurityGroup.GroupId
+      Description: "ClientIp"
 
-  # BastionInboundRuleAllowPrefixListSSH:
-  #   Condition: HasPrefixListId
-  #   Type: AWS::EC2::SecurityGroupIngress
-  #   Properties:
-  #     IpProtocol: tcp
-  #     FromPort: 22
-  #     ToPort: 22
-  #     SourcePrefixListId: !Ref PrefixListId
-  #     GroupId: !GetAtt BastionSecurityGroup.GroupId
-  #     Description: "PrefixList"
+  BastionInboundRuleAllowPrefixListSSH:
+    Condition: HasPrefixListId
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      SourcePrefixListId: !Ref PrefixListId
+      GroupId: !GetAtt BastionSecurityGroup.GroupId
+      Description: "PrefixList"
 
   # BastionLaunchTemplate:
   #   Type: AWS::EC2::LaunchTemplate
