@@ -350,54 +350,54 @@ Resources:
         - Key: soca:ClusterId
           Value: !Sub ${ClusterId}
 
-  # BastionIAMRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     AssumeRolePolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service:
-  #               - !Sub "ec2.${AWS::URLSuffix}"
-  #               - !Sub "ssm.${AWS::URLSuffix}"
-  #           Action:
-  #             - sts:AssumeRole
-  #     ManagedPolicyArns:
-  #       - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # Support for SSM
+  BastionIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - !Sub "ec2.${AWS::URLSuffix}"
+                - !Sub "ssm.${AWS::URLSuffix}"
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # Support for SSM
 
-  #     Policies:
-  #       - PolicyName: BastionPermissions
-  #         PolicyDocument:
-  #           Version: 2012-10-17
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - s3:GetObject
-  #                 - s3:ListBucket
-  #               Resource:
-  #                 - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":s3:::", !Ref S3InstallBucket , "/*" ] ]
-  #                 - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":s3:::", !Ref S3InstallBucket] ]
+      Policies:
+        - PolicyName: BastionPermissions
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":s3:::", !Ref S3InstallBucket , "/*" ] ]
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":s3:::", !Ref S3InstallBucket] ]
 
-  #             - Effect: Allow
-  #               Action:
-  #                 - ec2:CreateTags
-  #               Resource:
-  #                 - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:volume/*"
-  #                 - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:network-interface/*"
+              - Effect: Allow
+                Action:
+                  - ec2:CreateTags
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:volume/*"
+                  - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:network-interface/*"
 
-  #             - Effect: Allow
-  #               Action:
-  #                 - ec2:DescribeVolumes
-  #                 - ec2:DescribeNetworkInterfaces
-  #               Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeNetworkInterfaces
+                Resource: "*"
 
-  # BastionIAMInstanceProfile:
-  #   Type: AWS::IAM::InstanceProfile
-  #   Properties:
-  #     Path: /
-  #     Roles:
-  #       - !Ref BastionIAMRole
+  BastionIAMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref BastionIAMRole
 
   # BastionSecurityGroup:
   #   Type: AWS::EC2::SecurityGroup
