@@ -439,10 +439,12 @@ Resources:
         ImageId: !Ref AL2ImageId
         DisableApiTermination: false
         InstanceType: !Ref BastionInstanceType
-        IamInstanceProfile: !Ref BastionIAMInstanceProfile
+        IamInstanceProfile:
+          Arn: !GetAtt BastionIAMInstanceProfile.Arn
         BlockDeviceMappings:
           - DeviceName: "/dev/xvda"
             Ebs:
+              DeleteOnTermination: true
               VolumeSize: 10
               VolumeType: gp2
               Encrypted: true
@@ -450,7 +452,7 @@ Resources:
         NetworkInterfaces:
           - AssociatePublicIpAddress: "true"
             DeviceIndex: "0"
-            GroupSet: 
+            Groups: 
               - !Ref BastionSecurityGroup
         UserData:
           "Fn::Base64": !Sub |
