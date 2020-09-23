@@ -1493,7 +1493,7 @@ Outputs:
   ComputeNodeSecurityGroup:
     Value: !GetAtt ComputeNodeSecurityGroup.GroupId
   LambdaACMIAMRoleArn:
-    Value: !GetAtt LambdaACMIAMRole.
+    Value: !GetAtt LambdaACMIAMRole.Arn
   ProxyPrivateDnsName:
     Value: !Sub "proxy.${SocaDomain}"
   NoProxy:
