@@ -432,57 +432,57 @@ Resources:
       GroupId: !GetAtt BastionSecurityGroup.GroupId
       Description: "PrefixList"
 
-  # BastionLaunchTemplate:
-  #   Type: AWS::EC2::LaunchTemplate
-  #   Properties:
-  #     LaunchTemplateData:
-  #       ImageId: !Ref AL2ImageId
-  #       DisableApiTermination: false
-  #       InstanceType: !Ref BastionInstanceType
-  #       IamInstanceProfile: !Ref BastionIAMInstanceProfile
-  #       BlockDeviceMappings:
-  #         - DeviceName: "/dev/xvda"
-  #           Ebs:
-  #             VolumeSize: 10
-  #             VolumeType: gp2
-  #             Encrypted: true
+  BastionLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref AL2ImageId
+        DisableApiTermination: false
+        InstanceType: !Ref BastionInstanceType
+        IamInstanceProfile: !Ref BastionIAMInstanceProfile
+        BlockDeviceMappings:
+          - DeviceName: "/dev/xvda"
+            Ebs:
+              VolumeSize: 10
+              VolumeType: gp2
+              Encrypted: true
 
-  #       KeyName: !Ref SSHKeyPair
+        KeyName: !Ref SSHKeyPair
 
-        # NetworkInterfaces:
-        #   - AssociatePublicIpAddress: "true"
-        #     DeviceIndex: "0"
-        #     GroupSet: 
-        #       - !Ref BastionSecurityGroup
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: "true"
+            DeviceIndex: "0"
+            GroupSet: 
+              - !Ref BastionSecurityGroup
 
-        # Tags:
-        #   - Key: Name
-        #     Value: !Sub ${ClusterId}-Bastion
-        #   - Key: soca:KeepForever
-        #     Value: true
-        #   - Key: soca:ClusterId
-        #     Value: !Sub ${ClusterId}
-        #   - Key: soca:NodeType
-        #     Value: bastion
-        #   - Key: soca:BackupPlan
-        #     Value: !Sub ${ClusterId}
+        Tags:
+          - Key: Name
+            Value: !Sub ${ClusterId}-Bastion
+          - Key: soca:KeepForever
+            Value: true
+          - Key: soca:ClusterId
+            Value: !Sub ${ClusterId}
+          - Key: soca:NodeType
+            Value: bastion
+          - Key: soca:BackupPlan
+            Value: !Sub ${ClusterId}
         
-        # UserData:
-        #   "Fn::Base64": !Sub |
-        #     #!/bin/bash -xe
+        UserData:
+          "Fn::Base64": !Sub |
+            #!/bin/bash -xe
 
-        #     yum -y update --security
+            yum -y update --security
 
-        #     # Tag EBS disks manually as CFN ASG does not support it
-        #     AWS_AVAIL_ZONE=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)
-        #     AWS_REGION="`echo \"$AWS_AVAIL_ZONE\" | sed "s/[a-z]$//"`"
-        #     AWS_INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
-        #     EBS_IDS=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "Volumes[*].[VolumeId]" --out text | tr "\n" " ")
-        #     aws ec2 create-tags --resources $EBS_IDS --region $AWS_REGION --tags Key=Name,Value="${ClusterId} Root Disk" "Key=soca:ClusterId,Value=${ClusterId}"
+            # Tag EBS disks manually as CFN ASG does not support it
+            AWS_AVAIL_ZONE=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)
+            AWS_REGION="`echo \"$AWS_AVAIL_ZONE\" | sed "s/[a-z]$//"`"
+            AWS_INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
+            EBS_IDS=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "Volumes[*].[VolumeId]" --out text | tr "\n" " ")
+            aws ec2 create-tags --resources $EBS_IDS --region $AWS_REGION --tags Key=Name,Value="${ClusterId} Root Disk" "Key=soca:ClusterId,Value=${ClusterId}"
 
-        #     # Tag Network Adapter for the Proxy
-        #     ENI_IDS=$(aws ec2 describe-network-interfaces --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "NetworkInterfaces[*].[NetworkInterfaceId]" --out text | tr "\n" " ")
-        #     aws ec2 create-tags --resources $ENI_IDS --region $AWS_REGION --tags Key=Name,Value="${ClusterId} Proxy Network Adapter" "Key=soca:ClusterId,Value=${ClusterId}"
+            # Tag Network Adapter for the Proxy
+            ENI_IDS=$(aws ec2 describe-network-interfaces --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "NetworkInterfaces[*].[NetworkInterfaceId]" --out text | tr "\n" " ")
+            aws ec2 create-tags --resources $ENI_IDS --region $AWS_REGION --tags Key=Name,Value="${ClusterId} Proxy Network Adapter" "Key=soca:ClusterId,Value=${ClusterId}"
 
   # BastionAutoScalingGroup:
   #   Type: AWS::AutoScaling::AutoScalingGroup
