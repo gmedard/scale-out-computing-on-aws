@@ -450,10 +450,23 @@ Resources:
               Encrypted: true
         KeyName: !Ref SSHKeyPair
         NetworkInterfaces:
-          - AssociatePublicIpAddress: "true"
+          - AssociatePublicIpAddress: "false"
             DeviceIndex: "0"
             Groups: 
               - !Ref BastionSecurityGroup
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub "${ClusterId}-Bastion"
+              - Key: soca:ClusterId
+                Value: !Sub ${ClusterId}
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Sub "${ClusterId}-Bastion"
+              - Key: soca:ClusterId
+                Value: !Sub ${ClusterId}
         UserData:
           "Fn::Base64": !Sub |
             #!/bin/bash -xe
@@ -484,10 +497,13 @@ Resources:
           Version: !GetAtt BastionLaunchTemplate.LatestVersionNumber
       MaxInstanceLifetime: 604800
       VPCZoneIdentifier: 
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
-        - !Ref PublicSubnet3
-      Tags: 
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterId}-Bastion"
+          PropagateAtLaunch: true
         - Key: soca:ClusterId
           Value: !Sub ${ClusterId}
           PropagateAtLaunch: true

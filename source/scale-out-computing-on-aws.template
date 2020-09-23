@@ -494,6 +494,8 @@ Resources:
       TimeoutInMinutes: 60
 
 Outputs:
+  BastionDnsName:
+    Value: !GetAtt Security.Outputs.BastionDnsName
   SchedulerPublicIP:
     Value: !GetAtt Network.Outputs.SchedulerPublicIP
   LDAPMasterUsername:
