@@ -337,13 +337,12 @@ Resources:
   BastionNLBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Protocol: tcp
+      Protocol: TCP
       Port: 22
-      HealthCheckProtocol: tcp
+      HealthCheckProtocol: TCP
       HealthCheckPort: "22"
       HealthCheckEnabled: true
       HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 20
       HealthyThresholdCount: 3
       UnhealthyThresholdCount: 3
       VpcId: !Ref VpcId
