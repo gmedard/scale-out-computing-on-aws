@@ -24,6 +24,8 @@ Metadata:
           - ClientIp
           - PrefixListId
           - SSHKeyPair
+          - BastionInstanceType
+          - LdapInstanceType
           - ProxyInstanceType
 
       - Label:
@@ -43,6 +45,10 @@ Metadata:
         default: (Optional) Have your own AMI?
       SSHKeyPair:
         default: What's your SSH keypair?
+      BastionInstanceType:
+        default: Instance type for your bastion server
+      LdapInstanceType:
+        default: Instance type for your LDAP server
       ProxyInstanceType:
         default: Instance type for your proxy server
       BaseOS:
@@ -100,6 +106,16 @@ Parameters:
   SSHKeyPair:
     Type: AWS::EC2::KeyPair::KeyName
     Description: Default SSH pem keys used to SSH into the scheduler
+
+  BastionInstanceType:
+    Default: t3a.nano
+    Type: String
+    Description: Choose the type of instance to use for the bastion
+
+  LdapInstanceType:
+    Default: m5.large
+    Type: String
+    Description: Choose the type of instance to use for the LDAP server
 
   ProxyInstanceType:
     Default: m5.large
@@ -335,8 +351,12 @@ Resources:
         HostedZoneId: !GetAtt Network.Outputs.HostedZoneId
         AL2ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", amazonlinux2]
         SSHKeyPair: !Ref SSHKeyPair
+        BastionInstanceType: !Ref BastionInstanceType
         ProxyInstanceType: !Ref ProxyInstanceType
         ProxySubnetId: !GetAtt Network.Outputs.PublicSubnet1
+        PublicSubnet1: !GetAtt Network.Outputs.PublicSubnet1
+        PublicSubnet2: !GetAtt Network.Outputs.PublicSubnet2
+        PublicSubnet3: !GetAtt Network.Outputs.PublicSubnet3
         PrivateSubnet1: !GetAtt Network.Outputs.PrivateSubnet1
         PrivateSubnet2: !GetAtt Network.Outputs.PrivateSubnet2
         PrivateSubnet3: !GetAtt Network.Outputs.PrivateSubnet3
