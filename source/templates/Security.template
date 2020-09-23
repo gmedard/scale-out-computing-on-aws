@@ -334,27 +334,22 @@ Resources:
         - Key: soca:ClusterId
           Value: !Sub ${ClusterId}
 
-  # BastionNLBTargetGroup
-  #   Type: AWS::ElasticLoadBalancingV2::TargetGroup
-  #   Properties:
-  #     Protocol: tcp
-  #     Port: 22
-  #     HealthCheckProtocol: tcp
-  #     HealthCheckPort: "22"
-  #     HealthCheckEnabled: true
-  #     HealthCheckIntervalSeconds: 30
-  #     HealthCheckTimeoutSeconds: 20
-  #     HealthyThresholdCount: 
-  #     UnhealthyThresholdCount: 3
-  #     VpcId: !Ref VpcId
-  #     Tags:
-        # - Key: soca:ClusterId
-        #   Value: !Sub ${ClusterId}
-
-  #     TargetGroupAttributes: 
-  #       - TargetGroupAttribute
-  #     Targets: 
-  #       - TargetDescription
+  BastionNLBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Protocol: tcp
+      Port: 22
+      HealthCheckProtocol: tcp
+      HealthCheckPort: "22"
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 20
+      HealthyThresholdCount: 
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: soca:ClusterId
+          Value: !Sub ${ClusterId}
 
   # BastionIAMRole:
   #   Type: AWS::IAM::Role
