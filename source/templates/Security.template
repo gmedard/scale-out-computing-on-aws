@@ -527,6 +527,39 @@ Resources:
         - Key: soca:ClusterId
           Value: !Ref ClusterId
 
+  BastionIngressNLB1SSH:
+    # Used for health checks
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Join ["", [!Select [0, !GetAtt BastionNLBCustomResource.IpAddresses], "/32"]]
+      GroupId: !GetAtt BastionSecurityGroup.GroupId
+      Description: "NLB"
+
+  BastionIngressNLB2SSH:
+    # Used for health checks
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Join ["", [!Select [1, !GetAtt BastionNLBCustomResource.IpAddresses], "/32"]]
+      GroupId: !GetAtt BastionSecurityGroup.GroupId
+      Description: "NLB"
+
+  BastionIngressNLB3SSH:
+    # Used for health checks
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Join ["", [!Select [2, !GetAtt BastionNLBCustomResource.IpAddresses], "/32"]]
+      GroupId: !GetAtt BastionSecurityGroup.GroupId
+      Description: "NLB"
+
   BastionIngressClientIpSSH:
     Condition: HasClientIp
     Type: AWS::EC2::SecurityGroupIngress
@@ -1083,16 +1116,6 @@ Resources:
       GroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
       Description: "Scheduler"
 
-  ComputeNodeInboundRuleSchedulerSSH:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      IpProtocol: tcp
-      FromPort: 22
-      ToPort: 22
-      SourceSecurityGroupId: !GetAtt SchedulerSecurityGroup.GroupId
-      GroupId: !GetAtt ComputeNodeSecurityGroup.GroupId
-      Description: "Scheduler"
-
   ComputeNodeInboundRuleItSelf:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1198,16 +1221,6 @@ Resources:
         - Key: soca:ClusterId
           Value: !Ref ClusterId
 
-  LoadBalancerInboundRuleClientIPSSH:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      IpProtocol: tcp
-      FromPort: 22
-      ToPort: 22
-      CidrIp: !Ref ClientIp
-      GroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
-      Description: "ClientIP"
-
   LoadBalancerInboundRuleAllowClientIPHTTP:
     Condition: HasClientIp
     Type: AWS::EC2::SecurityGroupIngress
@@ -1228,16 +1241,6 @@ Resources:
       CidrIp: !Ref ClientIp
       GroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
       Description: "ClientIP"
-
-  LoadBalancerInboundRulePrefixListSSH:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      IpProtocol: tcp
-      FromPort: 22
-      ToPort: 22
-      SourcePrefixListId: !Ref PrefixListId
-      GroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
-      Description: "Client PrefixList"
 
   LoadBalancerInboundRuleAllowPrefixListHTTP:
     Condition: HasPrefixListId
