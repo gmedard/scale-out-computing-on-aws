@@ -343,6 +343,104 @@ Resources:
         - Key: soca:ClusterId
           Value: !Sub ${ClusterId}
 
+  #============================================================================
+  # Custom resource to get NLB private ip addresses so can allow
+  # health checks
+  #============================================================================
+
+  GetNLBPrivateIPLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: PreRequisite
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DeleteLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":logs:", !Ref "AWS::Region", ":", !Ref  "AWS::AccountId", ":log-group:/aws/lambda/", !Ref ClusterId, "*"] ]
+
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:DescribeLoadBalancers
+                  - ec2:DescribeNetworkInterfaces
+                Resource:
+                  - '*'
+
+  GetNLBPrivateIPLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Get NLB private ip addresses
+      FunctionName: !Sub "${ClusterId}-GetNLBPrivateIP"
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt GetNLBPrivateIPLambdaRole.Arn
+      Runtime: python3.7
+      Timeout: 180
+      Tags:
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+      Code:
+        ZipFile: !Sub |
+          import cfnresponse
+          import boto3
+          import logging
+          import re
+          '''
+          Get prefix list id
+          '''
+          logging.getLogger().setLevel(logging.INFO)
+          def lambda_handler(event, context):
+            try:
+              logging.info(event)
+              loadBalancerArn = event['ResourceProperties']['LoadBalancerArn']
+              logging.info("loadBalancerArn: " + loadBalancerArn)
+              loadBalancerId = re.sub(r'^.+:loadbalancer/', '', loadBalancerArn)
+              logging.info("loadBalancerId: " + loadBalancerId)
+              ec2_client = boto3.client('ec2')
+              response = ec2_client.describe_network_interfaces(Filters=[{'Name': 'description', 'Values': ['ELB ' + loadBalancerId]}])
+              ipAddresses = []
+              for networkInterface in response['NetworkInterfaces']:
+                logging.debug(networkInterface)
+                az = networkInterface['AvailabilityZone']
+                logging.info("az: " + az)
+                for privateIpAddress in networkInterface['PrivateIpAddresses']:
+                  logging.debug(privateIpAddress)
+                  ipAddress = privateIpAddress['PrivateIpAddress']
+                  logging.info("ipAddress:" + ipAddress)
+                  ipAddresses.append(ipAddress)
+            except:
+              logging.exception("Caught exception")
+              error_message = 'Exception getting NLB private IP addresses id for {}'.format(loadBalancerArn)
+              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
+
+            if len(ipAddresses) == 0:
+              msg = "No IP addresses found"
+              logging.error(msg)
+              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': msg}, msg)
+            else:
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {'IpAddresses': ipAddresses}, str(ipAddresses))
+
+  BastionNLBCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt GetNLBPrivateIPLambda.Arn
+      LoadBalancerArn: !Ref BastionNLB
+
   BastionNLBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -502,6 +600,17 @@ Resources:
             # Tag Network Adapter for the Proxy
             ENI_IDS=$(aws ec2 describe-network-interfaces --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "NetworkInterfaces[*].[NetworkInterfaceId]" --out text | tr "\n" " ")
             aws ec2 create-tags --resources $ENI_IDS --region $AWS_REGION --tags Key=Name,Value="${ClusterId} Proxy Network Adapter" "Key=soca:ClusterId,Value=${ClusterId}"
+
+            echo -e "
+               _____ ____  _________       ____             __  _           
+              / ___// __ \/ ____/   |     / __ )____ ______/ /_(_)___  ____ 
+              \__ \/ / / / /   / /| |    / __  / __ `/ ___/ __/ / __ \/ __ \
+             ___/ / /_/ / /___/ ___ |   / /_/ / /_/ (__  ) /_/ / /_/ / / / /
+            /____/\____/\____/_/  |_|  /_____/\__,_/____/\__/_/\____/_/ /_/ 
+            Cluster: ${ClusterId}
+            > ssh username@hostname
+            > ssh username@privateip
+            " > /etc/motd
 
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
