@@ -1,10 +1,17 @@
+#!/usr/bin/env python3
+
+import datetime as dt
+from datetime import datetime
 import fileinput
 import os
 import random
+import re
+import shutil
 import string
 import sys
 import argparse
 from shutil import make_archive, copy, copytree
+from time import sleep
 
 def upload_objects(s3, bucket_name, s3_prefix, directory_name):
     try:
@@ -32,16 +39,30 @@ if __name__ == "__main__":
     try:
         from colored import fg, bg, attr
         import boto3
+        from requests import get
         from botocore.client import ClientError
         from botocore.exceptions import ProfileNotFound
     except ImportError:
-        print(" > You must have 'colored' and 'boto3' installed. Run 'pip install boto3 colored'")
+        print(" > You must have 'colored', 'boto3' and 'requests' installed. Run 'pip install boto3 colored requests'")
         exit(1)
 
     parser = argparse.ArgumentParser(description='Build & Upload SOCA CloudFormation resources.')
     parser.add_argument('--profile', '-p', type=str, help='AWS CLI profile to use. See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html')
     parser.add_argument('--region', '-r', type=str, help='AWS region to use. If not specified will be prompted.')
     parser.add_argument('--bucket', '-b', type=str, help='S3 Bucket to use. If not specified will be prompted.')
+    parser.add_argument('--stack-name', '-s', type=str, help='Stack name to deploy in quick create link.')
+    parser.add_argument('--VpcCidr', type=str, help='Value for VpcCidr parameter.')
+    parser.add_argument('--client-ip', type=str, help='CIDR that can access scheduler.')
+    parser.add_argument('--prefix-list-id', '--pl', type=str, help='Prefix list for ingress.')
+    parser.add_argument('--ssh-keypair', type=str, help='SSH keypair.')
+    parser.add_argument('--username', type=str, help='Username')
+    parser.add_argument('--password', type=str, help='SSM Parameter name with password')
+    parser.add_argument('--RepositoryBucket', type=str, help='Value for RepositoryBucket parameter.')
+    parser.add_argument('--RepositoryFolder', type=str, help='Value for RepositoryFolder parameter.')
+    parser.add_argument('--id', type=str, help='Unique id for the s3 bucket folder. Use to update existing build.')
+    parser.add_argument('--create', action='store_true', default=False, help='Create new SOCA cluster.')
+    parser.add_argument('--create-change-set', action='store_true', default=False, help='Create CloudFormation changeset.')
+    parser.add_argument('--update', action='store_true', default=False, help='Create CloudFormation changeset and execute it.')
     args = parser.parse_args()
 
     print("====== Parameters ======\n")
@@ -53,6 +74,12 @@ if __name__ == "__main__":
         bucket = get_input(" > Please enter the name of an S3 bucket you own: ")
     else:
         bucket = args.bucket
+
+    if args.client_ip:
+        client_ip_re = r'(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+        if not re.match(client_ip_re, args.client_ip):
+            print("Invalid --client-ip {}. Must match {}".format(args.client_ip, client_ip_re))
+            exit(1)
 
     s3_bucket_exists = False
     try:
@@ -73,17 +100,29 @@ if __name__ == "__main__":
         print(e)
         print(" > Building locally but not uploading to S3")
 
+    # Detect Client IP
+    get_client_ip = get("https://ifconfig.co/json")
+    if get_client_ip.status_code == 200:
+        client_ip = get_client_ip.json()['ip'] + '/32'
+    else:
+        client_ip = ''
+
     build_path = os.path.dirname(os.path.realpath(__file__))
     os.chdir(build_path)
     # Make sure build ID is > 3 chars and does not start with a number
-    unique_id = ''.join(random.choice(string.ascii_lowercase) + random.choice(string.digits) for i in range(2))
+    if args.id:
+        unique_id = args.id
+    else:
+        unique_id = ''.join(random.choice(string.ascii_lowercase) + random.choice(string.digits) for i in range(2))
     build_folder = 'dist/' + unique_id
+    if os.path.exists(build_folder):
+        shutil.rmtree(build_folder)
     output_prefix = "soca-installer-" + unique_id  # prefix for the output artifact
     print("====== SOCA Build ======\n")
     print(" > Generated unique ID for build: " + unique_id)
     print(" > Creating temporary build folder ... ")
     print(" > Copying required files ... ")
-    targets = ['scripts', 'templates', 'README.txt', 'scale-out-computing-on-aws.template', 'install-with-existing-resources.template']
+    targets = ['playbooks', 'scripts', 'templates', 'README.txt', 'scale-out-computing-on-aws.template', 'install-with-existing-resources.template']
     for target in targets:
         if os.path.isdir(target):
             copytree(target, build_folder + '/' + target)
@@ -98,6 +137,8 @@ if __name__ == "__main__":
     print(" > Creating archive for build id: " + unique_id)
     make_archive('dist/' + output_prefix, 'gztar', build_folder)
 
+
+
     if s3_bucket_exists:
         print("====== Upload to S3 ======\n")
         print(" > Uploading required files ... ")
@@ -106,11 +147,115 @@ if __name__ == "__main__":
         # CloudFormation Template URL
         template_url = "https://%s.s3.amazonaws.com/%s/scale-out-computing-on-aws.template" % (bucket, output_prefix)
 
+        params = ''
+        if args.stack_name:
+            params += '&StackName=' + args.stack_name
+
+        params += '&param_S3InstallBucket=%s&param_S3InstallFolder=%s' % (bucket, output_prefix)
+
+        if args.client_ip:
+            params += '&param_ClientIp=' + args.client_ip
+
+        if args.prefix_list_id:
+            params += '&param_PrefixListId=' + args.prefix_list_id
+
+        if args.ssh_keypair:
+            params += '&param_SSHKeyPair=' + args.ssh_keypair
+
+        if args.username:
+            params += '&param_UserName=' + args.username
+        
         print("\n====== Upload COMPLETE ======")
+        print("\ntemplate URL: " + template_url)
         print("\n====== Installation Instructions ======")
         print("1. Click on the following link:")
-        print("%s==> https://console.aws.amazon.com/cloudformation/home?region=%s#/stacks/create/review?&templateURL=%s&param_S3InstallBucket=%s&param_S3InstallFolder=%s%s" % (fg('light_blue'), region, template_url, bucket, output_prefix, attr('reset')))
+        print("%s==> https://console.aws.amazon.com/cloudformation/home?region=%s#/stacks/create/review?&templateURL=%s%s%s" % (fg('light_blue'), region, template_url, params, attr('reset')))
         print("2. The 'Install Location' parameters are pre-filled for you, fill out the rest of the parameters.")
+        if args.id:
+            print("\nUpdated template: {}".format(template_url))
+        
+        if args.create or args.create_change_set or args.update:
+            cfn_client = boto3.client('cloudformation')
+            parameters = [
+                {'ParameterKey': 'S3InstallBucket', 'ParameterValue': args.bucket},
+                {'ParameterKey': 'S3InstallFolder', 'ParameterValue': output_prefix},
+            ]
+
+            if args.create_change_set or args.update:
+                parameters.append({'ParameterKey': 'BaseOS', 'UsePreviousValue': True})
+                parameters.append({'ParameterKey': 'CustomAMI', 'UsePreviousValue': True})
+                parameters.append({'ParameterKey': 'SchedulerInstanceType', 'UsePreviousValue': True})
+                parameters.append({'ParameterKey': 'VpcCidr', 'UsePreviousValue': True})
+
+            if args.VpcCidr:
+                parameters.append({'ParameterKey': 'VpcCidr', 'ParameterValue': args.VpcCidr})
+            elif not args.create:
+                parameters.append({'ParameterKey': 'VpcCidr', 'UsePreviousValue': True})
+            if args.client_ip:
+                parameters.append({'ParameterKey': 'ClientIp', 'ParameterValue': args.client_ip})
+            elif not args.create:
+                parameters.append({'ParameterKey': 'ClientIp', 'UsePreviousValue': True})
+            if args.prefix_list_id:
+                parameters.append({'ParameterKey': 'PrefixListId', 'ParameterValue': args.prefix_list_id})
+            elif not args.create:
+                parameters.append({'ParameterKey': 'PrefixListId', 'UsePreviousValue': True})
+            if args.ssh_keypair:
+                parameters.append({'ParameterKey': 'SSHKeyPair', 'ParameterValue': args.ssh_keypair})
+            elif not args.create:
+                parameters.append({'ParameterKey': 'SSHKeyPair', 'UsePreviousValue': True})
+            if args.username:
+                parameters.append({'ParameterKey': 'UserName', 'ParameterValue': args.username})
+            elif not args.create:
+                parameters.append({'ParameterKey': 'UserName', 'UsePreviousValue': True})
+            if args.password:
+                ssm_client = boto3.client('ssm')
+                password = ssm_client.get_parameter(Name=args.password)['Parameter']['Value']
+                parameters.append({'ParameterKey': 'UserPassword', 'ParameterValue': password})
+            elif not args.create:
+                parameters.append({'ParameterKey': 'UserPassword', 'UsePreviousValue': True})
+            if args.prefix_list_id:
+                parameters.append({'ParameterKey': 'PrefixListId', 'ParameterValue': args.prefix_list_id})
+            elif not args.create:
+                parameters.append({'ParameterKey': 'PrefixListId', 'UsePreviousValue': True})
+            if args.RepositoryBucket:
+                parameters.append({'ParameterKey': 'RepositoryBucket', 'ParameterValue': args.RepositoryBucket})
+            elif not args.create:
+                parameters.append({'ParameterKey': 'RepositoryBucket', 'UsePreviousValue': True})
+            if args.RepositoryFolder:
+                parameters.append({'ParameterKey': 'RepositoryFolder', 'ParameterValue': args.RepositoryFolder})
+            elif not args.create:
+                parameters.append({'ParameterKey': 'RepositoryFolder', 'UsePreviousValue': True})
+
+        if args.create:
+            print("\nCreating new stack: {}".format(args.stack_name))
+            cfn_client.create_stack(
+                StackName=args.stack_name,
+                TemplateURL=template_url,
+                Parameters=parameters,
+                OnFailure='DO_NOTHING',
+                Capabilities=['CAPABILITY_IAM', 'CAPABILITY_AUTO_EXPAND'],
+            )
+
+        elif args.create_change_set or args.update:
+            now = datetime.now(dt.timezone.utc)
+            changeSetName = '{}-update-{}'.format(args.stack_name, now.strftime('%y%m%d%H%M%S'))
+            cfn_client.create_change_set(
+                StackName=args.stack_name,
+                TemplateURL=template_url,
+                Capabilities=['CAPABILITY_IAM', 'CAPABILITY_AUTO_EXPAND'],
+                ChangeSetName=changeSetName,
+                Parameters=parameters,
+            )
+            print("\nCreated CloudFormation change set: {}".format(changeSetName))
+            print("\nWaiting for change set to be created")
+            status = 'CREATE_PENDING'
+            while status != 'CREATE_COMPLETE':
+                status = cfn_client.describe_change_set(StackName=args.stack_name, ChangeSetName=changeSetName)['Status']
+                sleep(1)
+
+        if args.update:
+            print("\nExecuting {}".format(changeSetName))
+            cfn_client.execute_change_set(ChangeSetName=changeSetName, StackName=args.stack_name)
     else:
         print("\n====== Installation Instructions ======")
         print("1: Create or use an existing S3 bucket on your AWS account (eg: 'mysocacluster')")
@@ -119,11 +264,3 @@ if __name__ == "__main__":
         print("4: Enter your cluster information.")
 
     print("\n\nFor more information: https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/")
-
-
-
-
-
-
-
-

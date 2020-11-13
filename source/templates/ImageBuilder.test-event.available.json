@@ -1,0 +1,136 @@
+{
+    "versionlessArn": "arn:aws:imagebuilder:us-east-1:415233562408:image/soca-test-proxy74-centos7edadesktopimagerecipe",
+    "semver": 1237940039285380274899124232,
+    "arn": "arn:aws:imagebuilder:us-east-1:415233562408:image/soca-test-proxy74-centos7edadesktopimagerecipe/1.0.0/8",
+    "name": "soca-test-proxy74-Centos7EDADesktopImageRecipe",
+    "version": "1.0.0",
+    "buildVersion": 8,
+    "state": {
+      "status": "AVAILABLE"
+    },
+    "platform": "Linux",
+    "imageRecipe": {
+      "arn": "arn:aws:imagebuilder:us-east-1:415233562408:image-recipe/soca-test-proxy74-centos7edadesktopimagerecipe/1.0.0",
+      "name": "soca-test-proxy74-Centos7EDADesktopImageRecipe",
+      "version": "1.0.0",
+      "description": "Configure Centos 7 AMI for SOCA EDA Desktop Node",
+      "components": [
+        {
+          "componentArn": "arn:aws:imagebuilder:us-east-1:627945338248:component/update-linux/1.0.0/1"
+        },
+        {
+          "componentArn": "arn:aws:imagebuilder:us-east-1:627945338248:component/update-linux-kernel-mainline/1.0.0/1"
+        },
+        {
+          "componentArn": "arn:aws:imagebuilder:us-east-1:627945338248:component/aws-cli-version-2-linux/1.0.0/1"
+        },
+        {
+          "componentArn": "arn:aws:imagebuilder:us-east-1:627945338248:component/amazon-cloudwatch-agent-linux/1.0.0/1"
+        },
+        {
+          "componentArn": "arn:aws:imagebuilder:us-east-1:627945338248:component/python-3-linux/1.0.2/1"
+        },
+        {
+          "componentArn": "arn:aws:imagebuilder:us-east-1:415233562408:component/soca-test-proxy74-socacomponent/1.0.0/1"
+        },
+        {
+          "componentArn": "arn:aws:imagebuilder:us-east-1:415233562408:component/soca-test-proxy74-edacomponent/1.0.0/1"
+        },
+        {
+          "componentArn": "arn:aws:imagebuilder:us-east-1:415233562408:component/soca-test-proxy74-desktopcomponent/1.0.0/1"
+        }
+      ],
+      "platform": "Linux",
+      "parentImage": "arn:aws:imagebuilder:us-east-1:627945338248:image/centos-linux-7-minimal-x86/2020.6.25/1",
+      "blockDeviceMappings": [],
+      "dateCreated": "Nov 5, 2020 8:06:58 PM",
+      "tags": {
+        "internalId": "f5b9532d-fb96-458b-bb2f-a952e7bec9f3",
+        "resourceArn": "arn:aws:imagebuilder:us-east-1:415233562408:image-recipe/soca-test-proxy74-centos7edadesktopimagerecipe/1.0.0"
+      },
+      "accountId": "415233562408"
+    },
+    "sourcePipelineArn": "arn:aws:imagebuilder:us-east-1:415233562408:image-pipeline/soca-test-proxy74-centos7edadesktoppipeline",
+    "infrastructureConfiguration": {
+      "arn": "arn:aws:imagebuilder:us-east-1:415233562408:infrastructure-configuration/soca-test-proxy74-imagebuilderinfrastructure",
+      "name": "soca-test-proxy74-ImageBuilderInfrastructure",
+      "instanceTypes": [
+        "m5.large"
+      ],
+      "instanceProfileName": "Soca-test-proxy74-ImageBuilder-EBJBAYRA2VK9-ImageBuilderInstanceProfile-1EIRZGB0KUWJ0",
+      "securityGroupIds": [
+        "sg-080254561af9cc4cb"
+      ],
+      "subnetId": "subnet-04be82ca0a9afcbb8",
+      "resourceTags": {
+        "soca:ClusterId": "soca-test-proxy74"
+      },
+      "tags": {
+        "internalId": "dc9b6ccf-d56d-41eb-bf1a-09e8c1c5afb0",
+        "resourceArn": "arn:aws:imagebuilder:us-east-1:415233562408:infrastructure-configuration/soca-test-proxy74-imagebuilderinfrastructure"
+      },
+      "logging": {
+        "s3Logs": {
+          "s3BucketName": "cartalla-soca-us-east-1",
+          "s3KeyPrefix": "soca-installer-Soca-test-proxy74/ImageBuilder/logs"
+        }
+      },
+      "keyPair": "cartalla",
+      "terminateInstanceOnFailure": false,
+      "snsTopicArn": "arn:aws:sns:us-east-1:415233562408:Soca-test-proxy74-ImageBuilder-EBJBAYRA2VK9-PipelineNotificationsSns-1TOZJI532UFV9",
+      "dateCreated": "Nov 4, 2020 10:48:28 PM",
+      "dateUpdated": "Nov 5, 2020 8:50:23 PM",
+      "accountId": "415233562408"
+    },
+    "imageTestsConfigurationDocument": {
+      "imageTestsEnabled": true,
+      "timeoutMinutes": 720
+    },
+    "distributionConfiguration": {
+      "arn": "arn:aws:imagebuilder:us-east-1:415233562408:distribution-configuration/soca-test-proxy74-centos7-eda-desktop-distr-config",
+      "name": "soca-test-proxy74-Centos7-EDA-Desktop-Distr-Config",
+      "dateCreated": "Nov 4, 2020 10:46:12 PM",
+      "distributions": [
+        {
+          "region": "us-east-1",
+          "amiDistributionConfiguration": {
+            "name": "soca-test-proxy74-Centos7-EDA-Desktop-2020-11-06T15-29-15.768Z",
+            "description": "Preconfigured SOCA EDA Desktop execution node",
+            "amiTags": {
+              "soca:ClusterId": "soca-test-proxy74",
+              "Name": "soca-test-proxy74-Centos7-EDA-Desktop-2020-11-06T15:29:15.768Z"
+            }
+          }
+        }
+      ],
+      "tags": {
+        "internalId": "848b74bd-b873-4081-a39d-b868ca54d0c1",
+        "resourceArn": "arn:aws:imagebuilder:us-east-1:415233562408:distribution-configuration/soca-test-proxy74-centos7-eda-desktop-distr-config"
+      },
+      "accountId": "415233562408"
+    },
+    "dateCreated": "Nov 6, 2020 3:29:15 PM",
+    "outputResources": {
+      "amis": [
+        {
+          "region": "us-east-1",
+          "image": "ami-07ad78cddcd74cd62",
+          "name": "soca-test-proxy74-Centos7-EDA-Desktop-2020-11-06T15-29-15.768Z",
+          "description": "Preconfigured SOCA EDA Desktop execution node",
+          "accountId": "415233562408"
+        }
+      ]
+    },
+    "buildExecutionId": "e29335a2-a4c6-4a7a-a3a2-12b1c7feb1c7",
+    "testExecutionId": "89589b86-7bca-4f5d-9b22-a44365455157",
+    "distributionJobId": "d9f6eec1-3282-48c5-b85f-a17262fc5fc8",
+    "integrationJobId": "9126027d-48a1-4270-b964-055b924046c3",
+    "accountId": "415233562408",
+    "osVersion": "CentOS Linux 7",
+    "enhancedImageMetadataEnabled": true,
+    "tags": {
+      "internalId": "e8994b43-5786-4a96-8e08-cb951d792415",
+      "resourceArn": "arn:aws:imagebuilder:us-east-1:415233562408:image/soca-test-proxy74-centos7edadesktopimagerecipe/1.0.0/8"
+    }
+  }
+  

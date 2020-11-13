@@ -1,98 +1,105 @@
 #!/bin/bash -xe
 
+# This script is called by ImageBuilder to install packages required by Linux Desktop instances
+# It is also called when a desktop instance starts so needs to detect if packages have already
+# been installed.
+# GPU support is enabled and DCV is configured by ComputeNodeStartDCV.sh
+
+function on_exit {
+    rc=$?
+    info "Exiting with rc=$rc"
+    exit $rc
+}
+trap on_exit EXIT
+
+function info {
+    echo "$(date):INFO: $1"
+}
+
+function error {
+    echo "$(date):INFO: $1"
+}
+
+info "Starting $0"
+
 source /etc/environment
 source /root/config.cfg
-DCV_HOST_ALTNAME=$(hostname | cut -d. -f1)
-AWS=$(which aws)
-INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
-GPU_INSTANCE_FAMILY=(g2 g3 g4 g4dn p2 p3 p3dn)
+if [ -e /etc/profile.d/profile ]; then
+    source /etc/profile.d/proxy.sh
+fi
 
-# Install Gnome & Mate Desktop
+AWS=$(which aws)
+INSTANCE_FAMILY=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
+echo "Detected Instance family $INSTANCE_FAMILY"
+GPU_INSTANCE_FAMILY=(g3 g4 g4dn)
+
+scriptdir=$(dirname $(readlink -f $0))
+export SOCA_BASE_OS=$($scriptdir/get-base-os.sh)
+
+# Install Gnome or  Mate Desktop
 if [[ $SOCA_BASE_OS == "rhel7" ]]
 then
-   yum groupinstall "Server with GUI" -y
-
+  yum groupinstall "Server with GUI" -y
 elif [[ $SOCA_BASE_OS == "amazonlinux2" ]]
 then
-   yum install -y $(echo ${DCV_AMAZONLINUX_PKGS[*]})
-   amazon-linux-extras install mate-desktop1.x
-   bash -c 'echo PREFERRED=/usr/bin/mate-session > /etc/sysconfig/desktop'
-
+  yum install -y $(echo ${DCV_AMAZONLINUX_PKGS[*]})
+  amazon-linux-extras install -y mate-desktop1.x
+  bash -c 'echo PREFERRED=/usr/bin/mate-session > /etc/sysconfig/desktop'
 else
-    # Centos7
-   yum groupinstall "GNOME Desktop" -y
+  # Centos7
+  yum groupinstall "GNOME Desktop" -y
 fi
 
-# Automatic start Gnome upon reboot
-systemctl set-default graphical.target
+# Install latest NVIDIA driver if GPU instance is detected
+# This isn't installed by ImageBuilder because I don't know if it causes problems if it is installed on a non-GPU instance
+if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]];
+then
+    # clean previously installed drivers
+    echo "Detected GPU instance .. installing NVIDIA Drivers"
+    cd /root
+    rm -f /root/NVIDIA-Linux-x86_64*.run
+    $AWS s3 cp --quiet --recursive s3://ec2-linux-nvidia-drivers/latest/ .
+    rm -rf /tmp/.X*
+    /bin/sh /root/NVIDIA-Linux-x86_64*.run -q -a -n -X -s
+    NVIDIAXCONFIG=$(which nvidia-xconfig)
+    $NVIDIAXCONFIG --preserve-busid --enable-all-gpus
+fi
 
 # Download and Install DCV
-cd ~
-wget $DCV_URL
-if [[ $(md5sum $DCV_TGZ | awk '{print $1}') != $DCV_HASH ]];  then
-    echo -e "FATAL ERROR: Checksum for DCV failed. File may be compromised." > /etc/motd
-    exit 1
+cd /root
+if [ ! -e $DCV_TGZ ]; then
+    wget $DCV_URL
+    if [[ $(md5sum $DCV_TGZ | awk '{print $1}') != $DCV_HASH ]];  then
+        echo -e "FATAL ERROR: Checksum for DCV failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+    tar zxvf $DCV_TGZ
+    rm $DCV_TGZ
 fi
-tar zxvf $DCV_TGZ
+
+# Install DCV server and Xdcv
 cd nice-dcv-$DCV_VERSION
-rpm -ivh *.rpm --nodeps
-
-
-# Uninstall dcv-gl if not GPU instances
-if [[ ! "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
-then
-    DCVGLADMIN=$(which dcvgladmin)
-    $DCVGLADMIN disable
+if ! yum list installed nice-dcv-server; then
+    yum install -y nice-dcv-server*.rpm
+fi
+if ! yum list installed nice-xdcv; then
+    yum install -y nice-xdcv-*.rpm
 fi
 
-# Configure
-mv /etc/dcv/dcv.conf /etc/dcv/dcv.conf.orig
+# Enable DCV support for USB remotization
+if ! yum list installed epel-release; then
+    yum install -y epel-release || amazon-linux-extras install -y epel
+fi
+if ! yum list installed dkms; then
+    yum install -y dkms
+fi
+#DCVUSBDRIVERINSTALLER=$(which dcvusbdriverinstaller)
+#$DCVUSBDRIVERINSTALLER --quiet || true
 
-#https://docs.aws.amazon.com/dcv/latest/adminguide/manage-disconnect.html
-IDLE_TIMEOUT=1440 # in minutes. Disconnect DCV (but not terminate the session) after 1 day if not active
-
-echo -e """
-[license]
-[log]
-[session-management]
-virtual-session-xdcv-args=\"-listen tcp\"
-[session-management/defaults]
-[session-management/automatic-console-session]
-[display]
-# add more if using an instance with more GPU
-cuda-devices=[\"0\"]
-[display/linux]
-# add more if using an instance with more GPU
-gl-displays = [\":0.0\"]
-[display/linux]
-use-glx-fallback-provider=false
-[connectivity]
-web-url-path=\"/$DCV_HOST_ALTNAME\"
-idle-timeout=$IDLE_TIMEOUT
-[security]
-auth-token-verifier=\"http://localhost:8444\"
-""" > /etc/dcv/dcv.conf
-
-# Start DCV Authenticator
-mkdir -p /var/run/dcvsimpleextauth
-chmod 777 /var/run/dcvsimpleextauth
-sudo systemctl enable dcvsimpleextauth
-sudo systemctl start dcvsimpleextauth
-
-# Start DCV server
-sudo systemctl enable dcvserver
-sudo systemctl start dcvserver
-
-systemctl stop firewalld
-systemctl disable firewalld
-
-# Final reboot is needed to update GPU drivers if running on G2/G3. Reboot will be triggered by ComputeNodePostReboot.sh
-
-if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
-then
-    exit 3 # notify ComputeNodePostReboot.sh to force reboot
+# Enable GPU support
+if ! yum list installed nice-dcv-gl; then
+    yum -y install nice-dcv-gl-*.rpm
 fi
 
-# Start X
-systemctl isolate graphical.target
+echo -e "\nPassed"
 exit 0

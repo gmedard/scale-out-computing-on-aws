@@ -2,8 +2,10 @@
 title: Import custom AMI to provision capacity faster
 ---
 
-By default, SOCA provision a vanilla AMI and install all required packages in ~3 to 5 minutes. 
+By default, SOCA provisions a vanilla AMI and installs all required packages in ~3 to 5 minutes. 
 If this cold time is not acceptable for your workload, you can [launch AlwaysOn instance](../../tutorials/launch-always-on-instances/) or pre-bake your AMI with all required libraries.
+
+Also see the Custom AMIs section to see how you can use preconfigured [EC2 Image Builder](../../Custom-AMIs/image-builder) pipelines to build custom AMIs.
 
 ### Step 1: Locate your base AMI
 
@@ -60,23 +62,23 @@ You can pre-install the packages listed on [https://github.com/awslabs/scale-out
 
 
 #### 3.2: Pre-Install the scheduler
-To reduce the launch time of your EC2 instance, it's recommended to pre-install PBSPro. 
-First, refer to [https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/config.cfg](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/config.cfg) and note all PBSPro related variables as you will need to use them below (see highlighted lines):
+To reduce the launch time of your EC2 instance, it's recommended to pre-install OpenPBS. 
+First, refer to [https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/config.cfg](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/config.cfg) and note all OpenPBS related variables as you will need to use them below (see highlighted lines):
 
 ~~~bash hl_lines="5 6 7"
 # Sudo as Root
 sudo su -
 
-# Define PBSPro variable
-export PBSPRO_URL=<variable_from_config.txt> # ex https://github.com/PBSPro/pbspro/releases/download/v18.1.4/pbspro-18.1.4.tar.gz
-export PBSPRO_TGZ=<variable_from_config.txt> # ex pbspro-18.1.4.tar.gz
-export PBSPRO_VERSION=<variable_from_config.txt> # ex 18.1.4
+# Define OpenPBS variable
+export OPENPBS_URL=<variable_from_config.txt> # ex https://github.com/openpbs/openpbs/archive/v20.0.1.tar.gz
+export OPENPBS_TGZ=<variable_from_config.txt> # ex v20.0.1.tar.gz
+export OPENPBS_VERSION=<variable_from_config.txt> # ex 20.0.1
 
-# Run the following command to install PBS
+# Run the following command to install OpenPBS
 cd ~
-wget $PBSPRO_URL
-tar zxvf $PBSPRO_TGZ
-cd pbspro-$PBSPRO_VERSION
+wget $OPENPBS_URL
+tar zxvf $OPENPBS_TGZ
+cd openpbs-$OPENPBS_VERSION
 ./autogen.sh
 ./configure --prefix=/opt/pbs
 make -j6
@@ -87,7 +89,7 @@ systemctl disable pbs
 ~~~
 
 !!!note "Installation Path"
-    Make sure to install pbspro under `/opt/pbs`
+    Make sure to install OpenPBS under `/opt/pbs`
     
 #### 3.3: (Optional) Pre-Install Gnome
 

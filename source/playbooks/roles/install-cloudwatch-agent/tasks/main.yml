@@ -1,0 +1,103 @@
+---
+# tasks file to install amazon-cloudwatch-agent
+
+- name: Create /root/bin
+  file:
+    path: /root/bin
+    state: directory
+    owner: root
+    group: root
+    mode: 0700
+
+- name: Create /root/bin/get-base-os.sh
+  template:
+    src:   root/bin/get-base-os.sh
+    dest: /root/bin/get-base-os.sh
+    backup: yes
+    mode: 0755
+    owner: root
+    group: root
+    force: yes
+
+- name: Install epel-release
+  shell:
+    creates: /etc/squid/squid.conf
+    cmd: amazon-linux-extras install -y epel
+
+- name: Install packages for cloudwatch agent
+  yum:
+    state: present
+    enablerepo: epel
+    name:
+      - collectd
+      - statsd
+
+- name: Create /root/cw-agent-config-bastion.json
+  template:
+    src:   root/cw-agent-config-bastion.json
+    dest: /root/cw-agent-config-bastion.json
+    backup: yes
+    mode: 0600
+    owner: root
+    group: root
+    force: yes
+
+- name: Create /root/cw-agent-config-computeNode.json
+  template:
+    src:   root/cw-agent-config-computeNode.json
+    dest: /root/cw-agent-config-computeNode.json
+    backup: yes
+    mode: 0600
+    owner: root
+    group: root
+    force: yes
+
+- name: Create /root/cw-agent-config-dcv.json
+  template:
+    src:   root/cw-agent-config-dcv.json
+    dest: /root/cw-agent-config-dcv.json
+    backup: yes
+    mode: 0600
+    owner: root
+    group: root
+    force: yes
+
+- name: Create /root/cw-agent-config-proxy.json
+  template:
+    src:   root/cw-agent-config-proxy.json
+    dest: /root/cw-agent-config-proxy.json
+    backup: yes
+    mode: 0600
+    owner: root
+    group: root
+    force: yes
+
+- name: Create /root/cw-agent-config-scheduler.json
+  template:
+    src:   root/cw-agent-config-scheduler.json
+    dest: /root/cw-agent-config-scheduler.json
+    backup: yes
+    mode: 0600
+    owner: root
+    group: root
+    force: yes
+
+- name: Create /root/bin/install-cloudwatch-agent.sh
+  template:
+    src:   root/bin/install-cloudwatch-agent.sh
+    dest: /root/bin/install-cloudwatch-agent.sh
+    mode: 0755
+    owner: root
+    group: root
+    force: yes
+
+- name: Install amazon-cloudwatch-agent
+  shell:
+    creates: /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent
+    cmd: /root/bin/install-cloudwatch-agent.sh /root/cw-agent-config-{{NodeType}}.json
+
+- name: Run amazon-cloudwatch-agent
+  service:
+    name: amazon-cloudwatch-agent
+    enabled: yes
+    state: started

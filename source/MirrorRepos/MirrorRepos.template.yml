@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create CentOS 7 Yum Repo Mirrors on S3
+
+Parameters:
+  S3InstallBucket:
+    Type: String
+
+  S3InstallFolder:
+    Type: String
+
+  S3MirrorRepoBucket:
+    Type: String
+
+  S3MirrorRepoFolder:
+    Type: String
+
+Resources:
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CodebuildRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*"
+
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketACL
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:List*
+                  - s3:PutObject
+                Resource:
+                  - !Sub "arn:aws:s3:::${S3InstallBucket}/${S3InstallFolder}/*"
+                  - !Sub "arn:aws:s3:::${S3MirrorRepoBucket}/${S3MirrorRepoFolder}/*"
+
+              - Effect: Allow
+                Action:
+                  - codebuild:CreateReportGroup
+                  - codebuild:CreateReport
+                  - codebuild:UpdateReport
+                  - codebuild:BatchPutTestCases
+                  - codebuild:BatchPutCodeCoverages
+                Resource:
+                  - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/*"
+
+              - Effect: Allow
+                Action:
+                  - '*'
+                Resource:
+                  - '*'
+
+  MirrorCentos7ReposProject:
+    Type: AWS::CodeBuild::Project
+    Properties: 
+      Description: Build CentOS 7 yum repo mirror and store in S3
+      Source: 
+        Type: S3
+        Location: !Sub "${S3InstallBucket}/${S3InstallFolder}/MirrorRepos/"
+      Environment:
+          Type: LINUX_CONTAINER
+          Image: centos:centos7
+          ComputeType: BUILD_GENERAL1_MEDIUM
+          EnvironmentVariables: 
+            - Name: S3_INSTALL_BUCKET
+              Value: !Ref S3InstallBucket
+            - Name: S3_INSTALL_FOLDER
+              Value: !Ref S3InstallFolder 
+            - Name: S3_MIRROR_REPO_BUCKET
+              Value: !Ref S3MirrorRepoBucket
+            - Name: S3_MIRROR_REPO_FOLDER
+              Value: !Ref S3MirrorRepoFolder
+          PrivilegedMode: true
+      Artifacts:
+          Type: NO_ARTIFACTS
+      ServiceRole: !Ref CodeBuildRole
+      TimeoutInMinutes: 60

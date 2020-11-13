@@ -22,6 +22,24 @@ Parameters:
   PrivateSubnet3:
     Type: String
 
+  SocaDomain:
+    Type: String
+
+  ProxyPrivateDnsName:
+    Type: String
+
+  NoProxy:
+    Type: String
+
+  ProxyCACert:
+    Type: AWS::SSM::Parameter::Value<String>
+
+  RepositoryBucket:
+    Type: String
+
+  RepositoryFolder:
+    Type: String
+    
   SchedulerPrivateIP:
     Type: String
 
@@ -125,9 +143,9 @@ Resources:
           import sys
           import datetime
           import cfnresponse
+          import logging
           import urllib3
           import os
-
           '''
           To improve performance and usability, SOCA sends anonymous metrics to AWS.
           You can disable this by switching "Send AnonymousData" to "No" on cloudformation_builder.py
@@ -136,6 +154,7 @@ Resources:
             - SOCA Instance Count
             - SOCA Launch/Delete time
           '''
+          logging.getLogger().setLevel(logging.INFO)
 
           def metrics(solution_id, uuid, data, url, request_timestamp):
               try:
@@ -163,6 +182,10 @@ Resources:
 
           def lambda_handler(event, context):
             try:
+              logging.info("event: {}".format(event))
+              requestType = event['RequestType']
+              if requestType == 'Delete':
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, '')
               request_timestamp = str(datetime.datetime.utcnow().isoformat())
               solution_id =  'SO0072'
               uuid = event['RequestId']
@@ -174,6 +197,7 @@ Resources:
                       'BaseOS': event['ResourceProperties']['BaseOS'],
                       'InstanceType': event['ResourceProperties']['InstanceType'],
                       'Efa': event['ResourceProperties']['Efa'],
+                      'Dcv': event['ResourceProperties']['Dcv'],
                       'ScratchSize': event['ResourceProperties']['ScratchSize'],
                       'RootSize': event['ResourceProperties']['RootSize'],
                       'SpotPrice': event['ResourceProperties']['SpotPrice'],
@@ -205,12 +229,20 @@ Resources:
       Name: !Sub ${ClusterId}
       Description: !Sub Contain all settings for ${ClusterId}
       SecretString: !Sub '{"VpcId": "${VpcId}",
+      "Region": "${AWS::Region}",
+      "StackName": "${AWS::StackName}",
       "PublicSubnet1": "${PublicSubnet1}",
       "PublicSubnet2": "${PublicSubnet2}",
       "PublicSubnet3": "${PublicSubnet3}",
       "PrivateSubnet1": "${PrivateSubnet1}",
       "PrivateSubnet2": "${PrivateSubnet2}",
       "PrivateSubnet3": "${PrivateSubnet3}",
+      "SocaDomain": "${SocaDomain}",
+      "ProxyPrivateDnsName": "${ProxyPrivateDnsName}",
+      "NoProxy": "${NoProxy}",
+      "ProxyCACert": "${ProxyCACert}",
+      "RepositoryBucket": "${RepositoryBucket}",
+      "RepositoryFolder": "${RepositoryFolder}",
       "SchedulerPrivateIP": "${SchedulerPrivateIP}",
       "SchedulerPrivateDnsName": "${SchedulerPrivateDnsName}",
       "SchedulerInstanceId": "${SchedulerInstanceId}",
@@ -251,7 +283,7 @@ Resources:
   ReadSecretsManagerValue:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: AccesClusterConfiguration
+      PolicyName: AccessClusterConfiguration
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -493,4 +525,99 @@ Resources:
             ConditionKey: "soca:BackupPlan"
             ConditionValue: !Sub ${ClusterId}
 
+  CleanBackupVaultLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSBackupFullAccess
+      Policies:
+        - PolicyName: BackupVault
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DeleteLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":logs:", !Ref "AWS::Region", ":", !Ref  "AWS::AccountId", ":log-group:/aws/lambda/", !Ref ClusterId, "*"] ]
 
+  CleanBackupVaultLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Update DNS record
+      FunctionName: !Sub "${ClusterId}-CleanBackupVault"
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt CleanBackupVaultLambdaRole.Arn
+      Runtime: python3.7
+      Timeout: 180
+      Tags:
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+      Code:
+        ZipFile: !Sub |
+          import cfnresponse
+          import boto3
+          import logging
+          '''
+          Clean up backup vault so it can be deleted
+          '''
+          logging.getLogger().setLevel(logging.INFO)
+          def lambda_handler(event, context):
+            try:
+              logging.info("event: {}".format(event))
+              properties = event['ResourceProperties']
+              expected_properties = ['BackupVaultName']
+              error_message = ""
+              for property in expected_properties:
+                try:
+                  value = event['ResourceProperties'][property]
+                except:
+                  error_message += "Missing {} property. ".format(property)
+              if error_message:
+                raise KeyError(error_message)
+              requestType = event['RequestType']
+              if requestType in ['Create', 'Update']:
+                logging.info("Nothing to do.")
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "Will_delete_Backups_on_stack_delete")
+                exit(0)
+              elif requestType == 'Delete':
+                action = 'DELETE'
+              else:
+                raise ValueError('Invalid RequestType: {}'.format(event['RequestType']))
+              backup_client = boto3.client('backup')
+              params = {'BackupVaultName': properties['BackupVaultName']}
+              while True:
+                response = backup_client.list_recovery_points_by_backup_vault(**params)
+                recoveryPoints = response['RecoveryPoints']
+                logging.info("Found {} recovery points".format(len(recoveryPoints)))
+                for recoveryPoint in recoveryPoints:
+                  logging.info("Deleting recovery point: {}".format(recoveryPoint))
+                  backup_client.delete_recovery_point(BackupVaultName=properties['BackupVaultName'], RecoveryPointArn=recoveryPoint['RecoveryPointArn'])
+                if 'NextToken' not in response:
+                  break
+                  params['NextToken'] = response['NextToken']
+            except Exception as e:
+              logging.exception(str(e))
+              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, str(e))
+              exit(1)
+
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "Will_delete_Backups_on_stack_delete")
+
+  CleanBackupVault:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt CleanBackupVaultLambda.Arn
+      BackupVaultName: !Ref SOCABackupVault

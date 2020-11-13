@@ -1,0 +1,100 @@
+version: 0.2
+
+# Built-in environment variables: https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-env-vars.html
+# Shell variables set in one phase persist in following phases and may be exported by the build.
+
+#run-as: root
+
+env:
+  shell: bash
+  exported-variables:
+    - repo_dir
+  git-credential-helper: yes
+
+phases:
+  install:
+    commands:
+      - yum -y install yum-utils createrepo groff which
+      - curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+      - python get-pip.py
+      - which pip
+      - pip install awscli
+      - ls /etc/pki/rpm-gpg
+      - yum -y install epel-release
+      - ls /etc/pki/rpm-gpg
+      - rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+      - rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-7
+      - # Copy config and source it
+      - aws s3 cp s3://${S3_INSTALL_BUCKET}/${S3_INSTALL_FOLDER}/scripts/config.cfg config.cfg
+      - source config.cfg
+      - yum -y install wget
+      - yum -y install make createrepo rpm-build
+      - pip install mock
+
+    finally:
+      - echo "Install phase complete"
+      - ls /etc/pki/rpm-gpg
+    
+  pre_build:
+    commands:
+      - export repo_dir=$(date +%Y-%m-%d-%H-%M-%S)
+      - 'echo repo_dir=${repo_dir}'
+      - mkdir -p $repo_dir
+
+      - 'echo "pwd: $(pwd)"'
+      - 'echo "mounts:"'
+      - df -h
+      - 'echo "Available space in current dir:"'
+      - df -h .
+      - 'echo "List of yum repos:"'
+      - yum repolist
+      - 'echo "Test aws CLI"'
+      - aws s3 sync --quiet $repo_dir s3://${S3_MIRROR_REPO_BUCKET}/${S3_MIRROR_REPO_FOLDER}/$repo_dir
+
+    finally:
+      - echo "pre_build phase complete"
+      - 'echo repo_dir=${repo_dir}'
+
+  build:
+    commands:
+      - echo "Running build phase"
+      - source config.cfg
+      - # Copy PBSPRO tarball
+      - wget -q $OPENPBS_URL
+      - aws s3 cp $OPENPBS_TGZ s3://${S3_MIRROR_REPO_BUCKET}/${S3_MIRROR_REPO_FOLDER}/${repo_dir}/source/pbspro/$PBSPRO_TGZ
+      - # Copy Python tarball
+      - wget -q $PYTHON_URL
+      - aws s3 cp $PYTHON_TGZ s3://${S3_MIRROR_REPO_BUCKET}/${S3_MIRROR_REPO_FOLDER}/${repo_dir}/source/python/$PYTHON_TGZ
+      - # Copy OpenMPI tarball
+      - wget -q $OPENMPI_URL
+      - aws s3 cp $OPENMPI_TGZ s3://${S3_MIRROR_REPO_BUCKET}/${S3_MIRROR_REPO_FOLDER}/${repo_dir}/source/openmpi/$OPENMPI_TGZ
+      - # Copy Metric Beat tarball
+      - wget -q $METRICBEAT_URL
+      - aws s3 cp $METRICBEAST_RPM s3://${S3_MIRROR_REPO_BUCKET}/${S3_MIRROR_REPO_FOLDER}/${repo_dir}/source/metricbeat/$METRICBEAST_RPM
+
+      - aws s3 cp --recursive s3://${S3_INSTALL_BUCKET}/${S3_INSTALL_FOLDER}/MirrorRepos/yum-s3-iam yum-s3-iam
+      - cd yum-s3-iam
+      - make test
+      - aws s3 cp /root/rpmbuild/RPMS/noarch/yum-plugin-s3-iam-1.2.2-1.noarch.rpm s3://${S3_MIRROR_REPO_BUCKET}/${S3_MIRROR_REPO_FOLDER}/${repo_dir}/yum/yum-plugin-s3-iam-1.2.2-1.noarch.rpm
+      - cd ..
+
+      - mkdir -p $repo_dir/yum/centos7
+      - reposync --quiet -g -l -p $repo_dir/yum/centos7 -r base
+      - reposync --quiet -g -l -p $repo_dir/yum/centos7 -r epel
+      - reposync --quiet -g -l -p $repo_dir/yum/centos7 -r extras
+      - reposync --quiet -g -l -p $repo_dir/yum/centos7 -r updates
+      - createrepo $repo_dir/yum/centos7
+
+    finally:
+      - echo "build phase complete"
+      - aws s3 sync --quiet $repo_dir s3://${S3_MIRROR_REPO_BUCKET}/${S3_MIRROR_REPO_FOLDER}/$repo_dir
+      - 'echo repo_dir=${repo_dir}'
+
+  post_build:
+    commands:
+      - echo "Running post_build phase"
+      - aws s3 sync --quiet $repo_dir s3://${S3_MIRROR_REPO_BUCKET}/${S3_MIRROR_REPO_FOLDER}/$repo_dir
+
+    finally:
+      - echo "post_build phase complete"
+      - 'echo Yum repo: s3://${S3_MIRROR_REPO_BUCKET}/${S3_MIRROR_REPO_FOLDER}/$repo_dir'

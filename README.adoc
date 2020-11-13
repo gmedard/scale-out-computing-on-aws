@@ -25,7 +25,18 @@ git clone https://github.com/awslabs/scale-out-computing-on-aws
 . Run the following command to create your build (support Python2 and Python3):
 +
 ```bash
-python source/manual_build.py
+STACK_NAME=<your-stack-name>
+python source/manual_build.py \
+    --region <region> \
+    --bucket <deployment-bucket> \
+    [ --client-ip <CIDR-with-access-to-VPC> ] \
+    [ --prefix-list-id <prefix-list-with-access-to-VPC> ] \
+    --ssh-keypair <keypair> \
+    --username <username> \
+    --stack-name $STACK_NAME \
+    --password <ssm-parameter-with password> \
+    --id $STACK_NAME \
+    --create
 ```
 
 . Output will be created under `source/dist/<build_id>`

@@ -2,9 +2,27 @@
 
 # Make sure to update your ELK Access Policy if you do not use the default environment and have configured multiple NAT gateway
 
+function on_exit {
+    rc=$?
+    info "Exiting with rc=$rc"
+    exit $rc
+}
+trap on_exit EXIT
+
+function info {
+    echo "$(date):INFO: $1"
+}
+
+function error {
+    echo "$(date):INFO: $1"
+}
+
+info "Starting $0"
 
 source /etc/environment
 source /root/config.cfg
+source /etc/profile.d/proxy.sh
+
 cd /root
 
 # Checks. You can combine with $SOCA_JOB_QUEUE (or other) to specify different periods for different app/queue

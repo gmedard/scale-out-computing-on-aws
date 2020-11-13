@@ -47,11 +47,19 @@ Metadata:
 
     ParameterLabels:
       ClientIp:
-        default: What's your IP?
+        default: Which IP addresses should have access?
+      PrefixListId:
+        default: Which prefix list should have access?
       CustomAMI:
         default: (Optional) Have your own AMI?
       SSHKeyPair:
         default: What's your SSH keypair?
+      BastionInstanceType:
+        default: Instance type for your bastion server
+      LdapInstanceType:
+        default: Instance type for your LDAP server
+      ProxyInstanceType:
+        default: Instance type for your proxy server
       BaseOS:
         default: Linux Distro
       S3InstallBucket:
@@ -71,7 +79,7 @@ Parameters:
     Description: If you use your own AMI, you still have to specify the base os (see above)
 
   SchedulerInstanceType:
-    Default: m5.large
+    Default: m5.xlarge
     Type: String
     Description: Choose the type of instance to use for the scheduler
 
@@ -130,14 +138,34 @@ Parameters:
 
   ClientIp:
     Type: String
-    Default: "0.0.0.0/0"
     Description: Default IP(s) allowed to directly SSH into the scheduler and access ElasticSearch. 0.0.0.0/0 means ALL INTERNET access. You probably want to change it with your own IP/subnet (x.x.x.x/32 for your own ip or x.x.x.x/24 for range. Replace x.x.x.x with your own PUBLIC IP. You can get your public IP using tools such as https://ifconfig.co/). Make sure to keep it restrictive!
-    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
-    ConstraintDescription: ClientIP must be a valid IP or network range of the form x.x.x.x/x
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})|(^$)'
+    ConstraintDescription: ClientIP must be a valid IP or network range of the form x.x.x.x/x. If you want to add everyone (not recommended) use 0.0.0.0/0 otherwise specify your IP/NETMASK (e.g x.x.x/32 or x.x.x.x/24 for subnet range)
+
+  PrefixListId:
+    Type: String
+    Description: Prefix list with IP(s) allowed to directly SSH into the scheduler and access ElasticSearch.
+    AllowedPattern: '(pl-([a-zA-Z0-9]+))|(^$)'
+    ConstraintDescription: PrefixListId must be blank or pl-[a-z][A-Z][0-9]+
 
   SSHKeyPair:
     Type: AWS::EC2::KeyPair::KeyName
     Description: Default SSH pem keys used to SSH into the scheduler
+
+  BastionInstanceType:
+    Default: t3a.nano
+    Type: String
+    Description: Choose the type of instance to use for the bastion
+
+  LdapInstanceType:
+    Default: m5.large
+    Type: String
+    Description: Choose the type of instance to use for the LDAP server
+
+  ProxyInstanceType:
+    Default: m5.large
+    Type: String
+    Description: Choose the type of instance to use for the proxy
 
   S3InstallBucket:
     Type: String
@@ -170,9 +198,9 @@ Parameters:
     Type: String
     MinLength: 5
     MaxLength: 50
-    AllowedPattern: "^[A-Za-z]+[a-zA-Z0-9@!#!+_^{}\\[\\]()]*$"
-    Description: "5 characters minimum. Must start with a letter. Special chars accepted: !#@!+_^{}[]()"
-    ConstraintDescription: "5 characters minimum. Must start with a letter. Special chars accepted: !#@!+_^{}[]()"
+    AllowedPattern: "^[A-Za-z]+[a-zA-Z0-9@!#+_^{}\\[\\]()]*$"
+    Description: "5 characters minimum. Must start with a letter. Special chars accepted: !#@+_^{}[]()"
+    ConstraintDescription: "5 characters minimum. Must start with a letter. Special chars accepted: !#@+_^{}[]()"
 
 Mappings:
   Send:
@@ -315,6 +343,7 @@ Resources:
       Code:
         ZipFile: !Sub |
           import cfnresponse
+          import re
           '''
           Check SOCA Pre-Requisite
           '''
@@ -322,25 +351,42 @@ Resources:
           def lambda_handler(event, context):
             region = event['ResourceProperties']['Region']
             stack_name = event['ResourceProperties']['StackName']
-            regions_blacklist = ['us-west-1'] # only 2 AZs
+            clusterIdPrefix = event['ResourceProperties']['ClusterIdPrefix']
+            regions_blacklist = ['us-west-1'] # only 2 AZ
 
             if region in regions_blacklist:
               error_message = 'Sorry, this region is not yet supported by SOCA'
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
 
+            # Strip clusterIdPrefix (soca) from front of Stackname to prevent things like "soca-soca-"
+            stack_name = re.sub(r'^' + clusterIdPrefix + r'[-]?', r'', stack_name, flags=re.IGNORECASE)
+
             if stack_name.__len__() > 20:
               error_message = 'Please use a stack name smaller than 20 characters'
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
 
-            stack_name_has_caps = any(c.isupper() for c in stack_name)
-            if stack_name_has_caps is True:
-              error_message = 'Do not use any uppercase in the stack name'
-              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
-              return error_message
+            clusterId = clusterIdPrefix + '-' + stack_name
 
-            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, 'Pre-Requisites OK')
+            # Calculate PublicSubnetMaskPrefixBits and PrivateSubnetMaskPrefixBits
+            # Example: VpcCidr: 10.0.0.0/17 --> VPCCidrPrefixBits = 17
+            # PublicSubnetMaskPrefixBits = 4
+            # PrivateSubnetMaskPrefixBits = 2
+            # PublicSubnetMaskBits = 32 - 17 - 4 = 11 (PublicSubnetMask would be 32 - 11 = /21)
+            # PrivateSubnetMaskBits = 32 - 17 - 2 = 13 (PrivateSubnetMask would be 32 - 13 = /19)
+
+            VPCCidrPrefixBits = event['ResourceProperties']['VPCCidrPrefixBits']
+            PublicSubnetMaskPrefixBits = event['ResourceProperties']['PublicSubnetMaskPrefixBits']
+            PrivateSubnetMaskPrefixBits = event['ResourceProperties']['PrivateSubnetMaskPrefixBits']
+            PublicSubnetMaskBits = 32 - int(VPCCidrPrefixBits) - int(PublicSubnetMaskPrefixBits)
+            PrivateSubnetMaskBits = 32 - int(VPCCidrPrefixBits) - int(PrivateSubnetMaskPrefixBits)
+
+            responseData = {'ClusterId': clusterId.lower(),
+                            'PublicSubnetMaskBits': PublicSubnetMaskBits,
+                            'PrivateSubnetMaskBits': PrivateSubnetMaskBits}
+
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, 'Pre-Requisites OK')
 
   CheckSOCAPreRequisite:
     DependsOn: CheckPreRequisiteLambda
@@ -349,27 +395,109 @@ Resources:
       ServiceToken: !GetAtt CheckPreRequisiteLambda.Arn
       Region: !Ref "AWS::Region"
       StackName: !Ref "AWS::StackName"
+      ClusterIdPrefix: !FindInMap [ Info, Data, ClusterIdPrefix ]
+      VPCCidrPrefixBits: !Select [1, !Split [ "/", !Ref VpcCidr ]]
+      PublicSubnetMaskPrefixBits: 4
+      PrivateSubnetMaskPrefixBits: 2
+
   # ============ END PRE-REQUISITE ============ #
 
-  Security:
+  Network:
     DependsOn: CheckSOCAPreRequisite
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
+	ExistingResources: true
+        VpcCidr: !Ref VpcCidr
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
+        SocaDomain: 'soca.local'
+        PublicSubnetMaskBits: !GetAtt CheckSOCAPreRequisite.PublicSubnetMaskBits
+        PrivateSubnetMaskBits: !GetAtt CheckSOCAPreRequisite.PrivateSubnetMaskBits
+      TimeoutInMinutes: 30
+      TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Network.template"] ]
+
+  # Proxy:
+  #   DependsOn: Network
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     Parameters:
+  #       VpcId: !GetAtt Network.Outputs.VpcId
+  #       SocaDomain: 'soca.local'
+  #       HostedZoneId: !GetAtt Network.Outputs.HostedZoneId
+  #       AL2ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", amazonlinux2]
+  #       SSHKeyPair: !Ref SSHKeyPair
+  #       ProxyInstanceType: !Ref ProxyInstanceType
+  #       ProxySubnetId: !GetAtt Network.Outputs.PublicSubnet1
+  #       NoProxy: !Sub "localhost,127.0.0.1,169.254.169.254,169.254.170.2,${VpcCidr},.${AWS::Region}.amazonaws.com"
+  #       UpdateDnsLambdaArn: !GetAtt Network.Outputs.UpdateDnsLambdaArn
+  #       ClientIp: !Ref ClientIp
+  #       PrefixListId: !Ref PrefixListId
+  #       ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
+  #       S3InstallBucket: !Ref S3InstallBucket
+  #       S3InstallFolder: !Ref S3InstallFolder
+  #     TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Proxy.template"] ]
+  #     TimeoutInMinutes: 30
+
+  Security:
+    DependsOn: Network
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
         VpcId: !Ref VpcId
+        SocaDomain: 'soca.local'
+        HostedZoneId: !GetAtt Network.Outputs.HostedZoneId
+        AL2ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", amazonlinux2]
+        SSHKeyPair: !Ref SSHKeyPair
+        BastionInstanceType: !Ref BastionInstanceType
+        ProxyInstanceType: !Ref ProxyInstanceType
+        ProxySubnetId: !GetAtt Network.Outputs.PublicSubnet1
+        NoProxy: !Sub "localhost,127.0.0.1,169.254.169.254,169.254.170.2,${VpcCidr},.${AWS::Region}.amazonaws.com"
+        UpdateDnsLambdaArn: !GetAtt Network.Outputs.UpdateDnsLambdaArn
+        HostedZoneId: !GetAtt Network.Outputs.HostedZoneId
         ClientIp: !Ref ClientIp
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        PrefixListId: !Ref PrefixListId
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         S3InstallBucket: !Ref S3InstallBucket
         S3InstallFolder: !Ref S3InstallFolder
+        SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
+        EIPNat: !GetAtt Network.Outputs.EIPNat
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Security.template"] ]
       TimeoutInMinutes: 30
+
+  ImageBuilder:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
+        S3InstallBucket: !Ref S3InstallBucket
+        S3InstallFolder: !Ref S3InstallFolder
+        VpcId: !GetAtt Network.Outputs.VpcId
+        ClientIp: !Ref ClientIp
+        PrefixListId: !Ref PrefixListId
+        PublicSubnet1: !GetAtt Network.Outputs.PublicSubnet1
+        ImageBuilderSecurityGroupId: !GetAtt Security.Outputs.ImageBuilderSecurityGroup
+        SSHKeyPair: !Ref SSHKeyPair
+        AmazonLinux2AMI: !FindInMap [RegionMap, !Ref "AWS::Region", amazonlinux2]
+        CentOS7AMI: !FindInMap [RegionMap, !Ref "AWS::Region", centos7]
+        RHEL7AMI: !FindInMap [RegionMap, !Ref "AWS::Region", rhel7]
+        EFSDataDns: !GetAtt Storage.Outputs.EFSDataDns
+        EFSAppsDns: !GetAtt Storage.Outputs.EFSAppsDns
+        SocaVersion: !FindInMap [ Info, Data, Version ]
+  
+      TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/ImageBuilder.template.yml"] ]
+      TimeoutInMinutes: 60
 
   Scheduler:
     DependsOn: Security
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
+        SocaDomain: 'soca.local'
+        HostedZoneId: !GetAtt Network.Outputs.HostedZoneId
+        UpdateDnsLambdaArn: !GetAtt Network.Outputs.UpdateDnsLambdaArn
         SSHKeyPair: !Ref SSHKeyPair
+        ProxyPrivateDnsName: !GetAtt Security.Outputs.ProxyPrivateDnsName
+        NoProxy: !GetAtt Security.Outputs.NoProxy
         SchedulerInstanceType: !Ref SchedulerInstanceType
         SubnetId: !Ref PublicSubnet1
         SecurityGroupId: !Ref SecurityGroupIdScheduler
@@ -377,7 +505,7 @@ Resources:
         S3InstallFolder: !Ref S3InstallFolder
         S3Bucket: !Ref S3InstallBucket
         Version: !FindInMap [ Info, Data, Version ]
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         EFSDataDns: !Ref EFSDataDns
         EFSAppsDns: !Ref EFSAppsDns
         ImageId: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
@@ -394,8 +522,9 @@ Resources:
       Parameters:
         SchedulerSecurityGroup: !Ref SecurityGroupIdScheduler
         PublicSubnet1: !Ref PublicSubnet1
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         ClientIp: !Ref ClientIp
+        PrefixListId: !Ref PrefixListId
         SchedulerPublicIP: !GetAtt Scheduler.Outputs.SchedulerPublicIP
         EIPNat: !Ref EIPNat
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Analytics.template"] ]
@@ -406,11 +535,12 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
+        LoadBalancerSecurityGroup: !GetAtt Security.Outputs.LoadBalancerSecurityGroup
         SchedulerSecurityGroup: !Ref SecurityGroupIdScheduler
         PublicSubnet1: !Ref PublicSubnet1
         PublicSubnet2: !Ref PublicSubnet2
         PublicSubnet3: !Ref PublicSubnet3
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         VpcId: !Ref VpcId
         SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId
         SchedulerIAMRole: !GetAtt Security.Outputs.SchedulerIAMRole
@@ -424,6 +554,9 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
+        SocaDomain: 'soca.local'
+        ProxyPrivateDnsName: !GetAtt Security.Outputs.ProxyPrivateDnsName
+        NoProxy: !GetAtt Security.Outputs.NoProxy
         SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId
         SchedulerPrivateDnsName: !GetAtt Scheduler.Outputs.SchedulerPrivateDnsName
         SchedulerPrivateIP: !GetAtt Scheduler.Outputs.SchedulerPrivateIP
@@ -448,7 +581,7 @@ Resources:
         S3InstallFolder: !Ref S3InstallFolder
         Version: !FindInMap [ Info, Data, Version ]
         S3Bucket: !Ref S3InstallBucket
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         SSHKeyPair: !Ref SSHKeyPair
         ImageId: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
         ESDomainEndpoint: !GetAtt Analytics.Outputs.ESDomainEndpoint
@@ -457,11 +590,12 @@ Resources:
         BaseOS: !Ref BaseOS
         SolutionMetricsRoleArn: !GetAtt Security.Outputs.SolutionMetricsRoleArn
         DefaultMetricCollection: !FindInMap [ Send, AnonymousUsage, Data ]
-
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Configuration.template"] ]
       TimeoutInMinutes: 60
 
 Outputs:
+  BastionDnsName:
+    Value: !GetAtt Security.Outputs.BastionDnsName
   SchedulerPublicIP:
     Value: !GetAtt Scheduler.Outputs.SchedulerPublicIP
   LDAPMasterUsername:
@@ -480,3 +614,12 @@ Outputs:
     Value: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
   Version:
     Value: !FindInMap [ Info, Data, Version ]
+
+  # Centos7SOCAImageArn:
+  #   Value: !GetAtt ImageBuilder.Outputs.Centos7SOCAImageArn
+  # Centos7SOCAImageId:
+  #   Value: !GetAtt ImageBuilder.Outputs.Centos7SOCAImageId
+  # Centos7EDAImageArn:
+  #   Value: !GetAtt ImageBuilder.Outputs.Centos7EDAImageArn
+  # Centos7EDAImageId:
+  #   Value: !GetAtt ImageBuilder.Outputs.Centos7EDAImageId

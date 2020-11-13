@@ -43,6 +43,7 @@ class CustomResourceSendAnonymousMetrics(AWSCustomObject):
         "KeepForever": (str, True),
         "TerminateWhenIdle": (str, True),
         "FsxLustre": (str, True),
+        "Dcv": (str, True),
     }
 
 
@@ -51,7 +52,7 @@ def main(**params):
         # Metadata
         t = Template()
         t.set_version("2010-09-09")
-        t.set_description("(SOCA) - Base template to deploy compute nodes. Version 2.5.0")
+        t.set_description("(SOCA) - Base template to deploy compute nodes. Version 2.6.0")
         allow_anonymous_data_collection = params["MetricCollectionAnonymous"]
         debug = False
         mip_usage = False
@@ -62,30 +63,86 @@ def main(**params):
         stack_name = Ref("AWS::StackName")
 
         # Begin LaunchTemplateData
-        UserData = '''#!/bin/bash -x
-export PATH=$PATH:/usr/local/bin
-if [[ "''' + params['BaseOS'] + '''" == "centos7" ]] || [[ "''' + params['BaseOS'] + '''" == "rhel7" ]];
-    then
-        EASY_INSTALL=$(which easy_install-2.7)
-        $EASY_INSTALL pip
-        PIP=$(which pip2.7)
-        $PIP install awscli
-        yum install -y nfs-utils # enforce install of nfs-utils
+        UserData = '''#!/bin/bash -ex
+
+# Configure the proxy
+value="''' + params['ProxyCACert'] + '''"
+echo $value >  /etc/pki/ca-trust/source/anchors/proxyCA.pem
+update-ca-trust
+
+cat <<EOF > /etc/profile.d/proxy.sh
+proxy_url="http://''' + params['ProxyPrivateDnsName'] + ''':3128/"
+
+export HTTP_PROXY=\$proxy_url
+export HTTPS_PROXY=\$proxy_url
+export http_proxy=\$proxy_url
+export https_proxy=\$proxy_url
+
+# No proxy:
+# Comma separated list of destinations that shouldn't go to the proxy.
+# - EC2 metadata service
+# - Private IP address ranges (VPC local)
+export NO_PROXY="''' + params['NoProxy'] + '''"
+export no_proxy=\$NO_PROXY
+
+export REQUESTS_CA_BUNDLE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+EOF
+
+source /etc/profile.d/proxy.sh
+
+cat <<EOF > /etc/yum.repos.d/10_proxy.conf
+[main]
+proxy=http://''' + params['ProxyPrivateDnsName'] + ''':3128/
+EOF
+
+if grep -q 'Amazon Linux release 2' /etc/system-release; then
+    BASE_OS=amazonlinux2
+elif grep -q 'CentOS Linux release 7' /etc/system-release; then
+    BASE_OS=centos7
 else
-     # Upgrade awscli on ALI (do not use yum)
-     EASY_INSTALL=$(which easy_install-2.7)
-     $EASY_INSTALL pip
-     PIP=$(which pip)
-     $PIP install awscli --upgrade 
+    BASE_OS=rhel7
 fi
-if [[ "''' + params['BaseOS'] + '''" == "amazonlinux2" ]];
+
+# Install pip and awscli
+export PATH=$PATH:/usr/local/bin
+if [[ "$BASE_OS" == "centos7" ]] || [[ "$BASE_OS" == "rhel7" ]];
+then
+     yum install -y python3-pip
+     PIP=$(which pip3)
+     $PIP install awscli
+else
+     yum install -y python3-pip
+     PIP=$(which pip3)
+     $PIP install awscli
+fi
+
+# Configure using ansible
+# If not amazon linux then the proxy needs to be set up before ansible can be installed.
+# The playbooks are downloaded from S3 using the S3 VPC endpoint so don't require the proxy.
+if ! yum list installed ansible &> /dev/null; then
+    if [ $BASE_OS == "amazonlinux2" ]; then
+        amazon-linux-extras install -y ansible2
+    else
+        yum -y install ansible
+    fi
+fi
+aws s3 cp --recursive s3://''' + params['S3Bucket'] + '''/''' + params['S3InstallFolder'] + '''/playbooks/ /root/playbooks/
+cd /root/playbooks
+ansible-playbook computeNode.yml -e Region=''' + params['Region'] + ''' -e Domain=''' + params['SocaDomain'] + ''' -e S3InstallBucket=''' + params['S3Bucket'] + ''' -e S3InstallFolder=''' + params['S3InstallFolder'] + ''' -e ClusterId=''' + params['ClusterId'] + ''' -e NoProxy=''' + params['NoProxy'] + ''' -e NodeType=''' + params['NodeType'] + ''' >> /root/ansible.log 2>&1
+
+if [[ "$BASE_OS" == "centos7" ]] || [[ "$BASE_OS" == "rhel7" ]];
+then
+     yum install -y nfs-utils # enforce install of nfs-utils
+fi
+
+if [[ "$BASE_OS" == "amazonlinux2" ]];
     then
         /usr/sbin/update-motd --disable
 fi
 
 GET_INSTANCE_TYPE=$(curl http://169.254.169.254/latest/meta-data/instance-type)
 echo export "SOCA_CONFIGURATION="''' + str(params['ClusterId']) + '''"" >> /etc/environment
-echo export "SOCA_BASE_OS="''' + str(params['BaseOS']) + '''"" >> /etc/environment
+echo export "SOCA_BASE_OS="$BASE_OS"" >> /etc/environment
 echo export "SOCA_JOB_QUEUE="''' + str(params['JobQueue']) + '''"" >> /etc/environment
 echo export "SOCA_JOB_OWNER="''' + str(params['JobOwner']) + '''"" >> /etc/environment
 echo export "SOCA_JOB_NAME="''' + str(params['JobName']) + '''"" >> /etc/environment
@@ -106,7 +163,7 @@ echo export "SOCA_ESDOMAIN_ENDPOINT="''' + str(params['ESDomainEndpoint']).lower
 
 echo export "SOCA_HOST_SYSTEM_LOG="/apps/soca/''' + str(params['ClusterId']) + '''/cluster_node_bootstrap/logs/''' + str(params['JobId']) + '''/$(hostname -s)"" >> /etc/environment
 echo export "AWS_STACK_ID=${AWS::StackName}" >> /etc/environment
-echo export "AWS_DEFAULT_REGION=${AWS::Region}" >> /etc/environment
+echo export "AWS_DEFAULT_REGION=''' + params['Region'] + '''" >> /etc/environment
 
 
 source /etc/environment
@@ -132,7 +189,7 @@ while [[ $? -ne 0 ]] && [[ $EFS_MOUNT -lt 5 ]]
     mount -a
   done
 
-# Configure NTP
+# Configure Chrony
 yum remove -y ntp
 yum install -y chrony
 mv /etc/chrony.conf  /etc/chrony.conf.original
@@ -167,9 +224,11 @@ systemctl enable chronyd
 
 # Prepare  Log folder
 mkdir -p $SOCA_HOST_SYSTEM_LOG
-echo "@reboot /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log 2>&1" | crontab -
+chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh
+echo "@reboot /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log 2>&1" | crontab -
 $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.cfg /root/
-/bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh ''' + params['SchedulerHostname'] + ''' >> $SOCA_HOST_SYSTEM_LOG/ComputeNode.sh.log 2>&1'''
+chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh
+/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh ''' + params['SchedulerHostname'] + ''' >> $SOCA_HOST_SYSTEM_LOG/ComputeNode.sh.log 2>&1'''
 
         SpotFleet = True if ((params["SpotPrice"] is not False) and (int(params["DesiredCapacity"]) > 1 or len(instances_list)>1)) else False
         ltd.EbsOptimized = True
@@ -411,6 +470,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             metrics.KeepForever = str(params["KeepForever"])
             metrics.FsxLustre = str(params["FSxLustreConfiguration"])
             metrics.TerminateWhenIdle = str(params["TerminateWhenIdle"])
+            metrics.Dcv = "false"
             t.add_resource(metrics)
         # End Custom Resource
 
