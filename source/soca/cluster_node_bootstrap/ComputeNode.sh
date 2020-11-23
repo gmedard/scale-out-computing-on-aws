@@ -58,15 +58,13 @@ cd ~
 info "Installing required packages"
 if [[ $SOCA_BASE_OS == "rhel7" ]];
 then
-    yum install -y $(echo ${SYSTEM_PKGS[*]})    --enablerepo rhel-7-server-rhui-optional-rpms
-    yum install -y $(echo ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
+    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
 else
-    yum install -y $(echo ${SYSTEM_PKGS[*]})
-    yum install -y $(echo ${SCHEDULER_PKGS[*]})
+    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
 fi
 
-yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]})
-yum install -y $(echo ${SSSD_PKGS[*]})
+yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]})
+
 info "Required packages installed"
 
 # Configure Scratch Directory if specified by the user
@@ -77,67 +75,68 @@ if [[ $SOCA_SCRATCH_SIZE -ne 0 ]];
 then
     LIST_ALL_DISKS=$(lsblk --list | grep disk | awk '{print $1}')
     for disk in $LIST_ALL_DISKS;
-    do
-        CHECK_IF_PARTITION_EXIST=$(lsblk -b /dev/$disk | grep part | wc -l)
-        CHECK_PARTITION_SIZE=$(lsblk -lnb /dev/$disk -o SIZE)
-	let SOCA_SCRATCH_SIZE_IN_BYTES=$SOCA_SCRATCH_SIZE*1024*1024*1024
-	if [[ $CHECK_IF_PARTITION_EXIST -eq 0 ]] && [[ $CHECK_PARTITION_SIZE -eq $SOCA_SCRATCH_SIZE_IN_BYTES ]];
-	then
-	    echo "Detected /dev/$disk with no partition as scratch device"
-	    mkfs -t ext4 /dev/$disk
+	    do
+	    CHECK_IF_PARTITION_EXIST=$(lsblk -b /dev/$disk | grep part | wc -l)
+	    CHECK_PARTITION_SIZE=$(lsblk -lnb /dev/$disk -o SIZE)
+	    let SOCA_SCRATCH_SIZE_IN_BYTES=$SOCA_SCRATCH_SIZE*1024*1024*1024
+	    if [[ $CHECK_IF_PARTITION_EXIST -eq 0 ]] && [[ $CHECK_PARTITION_SIZE -eq $SOCA_SCRATCH_SIZE_IN_BYTES ]];
+	    then
+	        echo "Detected /dev/$disk with no partition as scratch device"
+		    mkfs -t ext4 /dev/$disk
             echo "/dev/$disk /scratch ext4 defaults 0 0" >> /etc/fstab
-        fi
+	    fi
     done
 else
     # Use Instance Store if possible.
     # When instance has more than 1 instance store, raid + mount them as /scratch
-    VOLUME_LIST=()
-    if [[ ! -z $(ls /dev/nvme[0-9]n1) ]];
-    then
+	VOLUME_LIST=()
+	if [[ ! -z $(ls /dev/nvme[0-9]n1) ]];
+        then
         echo 'Detected Instance Store: NVME'
         DEVICES=$(ls /dev/nvme[0-9]n1)
 
     elif [[ ! -z $(ls /dev/xvdc[a-z]) ]];
-    then
+        then
         echo 'Detected Instance Store: SSD'
         DEVICES=$(ls /dev/xvdc[a-z])
     else
         echo 'No instance store detected on this machine.'
     fi
 
-    if [[ ! -z $DEVICES ]];
-    then
+	if [[ ! -z $DEVICES ]];
+	then
         echo "Detected Instance Store with NVME:" $DEVICES
         # Clear Devices which are already mounted (eg: when customer import their own AMI)
         for device in $DEVICES;
         do
             CHECK_IF_PARTITION_EXIST=$(lsblk -b $device | grep part | wc -l)
             if [[ $CHECK_IF_PARTITION_EXIST -eq 0 ]];
-            then
-                echo "$device is free and can be used"
-                VOLUME_LIST+=($device)
+             then
+             echo "$device is free and can be used"
+             VOLUME_LIST+=($device)
             fi
         done
 
-        VOLUME_COUNT=${#VOLUME_LIST[@]}
-        if [[ $VOLUME_COUNT -eq 1 ]];
-        then
-	    # If only 1 instance store, mfks as ext4
-	    echo "Detected  1 NVMe device available, formatting as ext4 .."
-	    mkfs -t ext4 $VOLUME_LIST
-	    echo "$VOLUME_LIST /scratch ext4 defaults 0 0" >> /etc/fstab
-	elif [[ $VOLUME_COUNT -gt 1 ]];
-	then
-	    # if more than 1 instance store disks, raid them !
-	    echo "Detected more than 1 NVMe device available, creating XFS fs ..."
-	    DEVICE_NAME="md0"
+	    VOLUME_COUNT=${#VOLUME_LIST[@]}
+	    if [[ $VOLUME_COUNT -eq 1 ]];
+	    then
+	        # If only 1 instance store, mfks as ext4
+	        echo "Detected  1 NVMe device available, formatting as ext4 .."
+	        mkfs -t ext4 $VOLUME_LIST
+	        echo "$VOLUME_LIST /scratch ext4 defaults 0 0" >> /etc/fstab
+	    elif [[ $VOLUME_COUNT -gt 1 ]];
+	    then
+	        # if more than 1 instance store disks, raid them !
+	        echo "Detected more than 1 NVMe device available, creating XFS fs ..."
+	        DEVICE_NAME="md0"
             for dev in ${VOLUME_LIST[@]} ; do dd if=/dev/zero of=$dev bs=1M count=1 ; done
             echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
             mkfs -t ext4 /dev/$DEVICE_NAME
+            mdadm --detail --scan | tee -a /etc/mdadm.conf
             echo "/dev/$DEVICE_NAME /scratch ext4 defaults 0 0" >> /etc/fstab
         else
             echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
-	fi
+	    fi
     fi
 fi
 touch /var/lib/cloud/instance/sem/scratch_configured
@@ -226,6 +225,7 @@ ldap_sudo_smart_refresh_interval=3600
 [ifp]
 
 [secrets]" > /etc/sssd/sssd.conf
+
 
 chmod 600 /etc/sssd/sssd.conf
 systemctl enable sssd

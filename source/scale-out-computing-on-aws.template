@@ -431,6 +431,7 @@ Resources:
         HostedZoneId: !GetAtt Network.Outputs.HostedZoneId
         PublicSubnet1: !GetAtt Network.Outputs.PublicSubnet1
         PublicSubnet2: !GetAtt Network.Outputs.PublicSubnet2
+        PublicSubnet3: !GetAtt Network.Outputs.PublicSubnet3
         PrivateSubnet1: !GetAtt Network.Outputs.PrivateSubnet1
         PrivateSubnet2: !GetAtt Network.Outputs.PrivateSubnet2
         PrivateSubnet3: !GetAtt Network.Outputs.PrivateSubnet3
@@ -619,31 +620,43 @@ Outputs:
   Version:
     Value: !FindInMap [ Info, Data, Version ]
 
+  Centos7SOCAImagePipelineUrl:
+    Value: !GetAtt ImageBuilder.Outputs.Centos7SOCAImagePipelineUrl
   Centos7SOCAImageRunPipelineCommand:
     Value: !GetAtt ImageBuilder.Outputs.Centos7SOCAImageRunPipelineCommand
   Centos7SOCAImageBuildUrl:
     Value: !GetAtt ImageBuilder.Outputs.Centos7SOCAImageBuildUrl
 
+  Centos7SOCADesktopImagePipelineUrl:
+    Value: !GetAtt ImageBuilder.Outputs.Centos7SOCADesktopImagePipelineUrl
   Centos7SOCADesktopImageRunPipelineCommand:
     Value: !GetAtt ImageBuilder.Outputs.Centos7SOCADesktopImageRunPipelineCommand
   Centos7SOCADesktopImageBuildUrl:
     Value: !GetAtt ImageBuilder.Outputs.Centos7SOCADesktopImageBuildUrl
 
+  Centos7EDAImagePipelineUrl:
+    Value: !GetAtt ImageBuilder.Outputs.Centos7EDAImagePipelineUrl
   Centos7EDAImageRunPipelineCommand:
     Value: !GetAtt ImageBuilder.Outputs.Centos7EDAImageRunPipelineCommand
   Centos7EDAImageBuildUrl:
     Value: !GetAtt ImageBuilder.Outputs.Centos7EDAImageBuildUrl
 
+  Centos7EDADesktopImagePipelineUrl:
+    Value: !GetAtt ImageBuilder.Outputs.Centos7EDADesktopImagePipelineUrl
   Centos7EDADesktopImageRunPipelineCommand:
     Value: !GetAtt ImageBuilder.Outputs.Centos7EDADesktopImageRunPipelineCommand
   Centos7EDADesktopImageBuildUrl:
     Value: !GetAtt ImageBuilder.Outputs.Centos7EDADesktopImageBuildUrl
 
+  RHEL7EDAImagePipelineUrl:
+    Value: !GetAtt ImageBuilder.Outputs.RHEL7EDAImagePipelineUrl
   RHEL7EDAImageRunPipelineCommand:
     Value: !GetAtt ImageBuilder.Outputs.RHEL7EDAImageRunPipelineCommand
   RHEL7EDAImageBuildUrl:
     Value: !GetAtt ImageBuilder.Outputs.RHEL7EDAImageBuildUrl
 
+  RHEL7EDADesktopImagePipelineUrl:
+    Value: !GetAtt ImageBuilder.Outputs.RHEL7EDADesktopImagePipelineUrl
   RHEL7EDADesktopImageRunPipelineCommand:
     Value: !GetAtt ImageBuilder.Outputs.RHEL7EDADesktopImageRunPipelineCommand
   RHEL7EDADesktopImageBuildUrl:

@@ -46,6 +46,9 @@ Parameters:
   PublicSubnet2:
     Type: AWS::EC2::Subnet::Id
 
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet::Id
+
   PrivateSubnet1:
     Type: AWS::EC2::Subnet::Id
 
@@ -109,7 +112,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: PreRequisite
+        - PolicyName: GetPrefixList
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -203,6 +206,7 @@ Resources:
             - !Sub "arn:aws:s3:::ec2-linux-nvidia-drivers"
             - !Sub "arn:aws:s3:::ec2-linux-nvidia-drivers/*"
             - !If [ HasRepository, !Sub "arn:${AWS::Partition}:s3:::${RepositoryBucket}/${RepositoryFolder}/*", !Ref 'AWS::NoValue' ]
+
         - Effect: Allow
           Principal: "*"
           Action:
@@ -212,7 +216,9 @@ Resources:
             - "s3:List*"
           Resource:
             - !Sub "arn:aws:s3:::${S3InstallBucket}"
+            - !Sub "arn:aws:s3:::${S3InstallBucket}/*"
             - !Sub "arn:aws:s3:::${S3InstallBucket}/${S3InstallFolder}/*"
+
         # Cloudformation wait conditions
         # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-vpce-bucketnames.html
         - Effect: Allow
@@ -246,8 +252,10 @@ Resources:
     Properties:
       GroupDescription: "VPC Endpoints"
       Tags:
-      - Key: Name
-        Value: !Sub "${ClusterId}-VpcEndpointsSG"
+        - Key: Name
+          Value: !Sub "${ClusterId}-VpcEndpointsSG"
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
       VpcId: !Ref VpcId
 
   VpcEndpointIgressBastionHTTPS:
@@ -565,16 +573,13 @@ Resources:
       Subnets: 
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
+        - !Ref PublicSubnet3
       LoadBalancerAttributes:
         - Key: load_balancing.cross_zone.enabled
           Value: true
-        # - Key: access_logs.s3.enabled
-        #   Value: true
-        # - Key: access_logs.s3.bucket
-        #   Value: !Sub "${S3InstallBucket}"
-        # - Key: access_logs.s3.prefix
-        #   Value: !Sub "${S3InstallFolder}/BastionNLBLogs"
       Tags:
+        - Key: Name
+          Value: !Sub ${ClusterId}-bastion
         - Key: soca:ClusterId
           Value: !Sub ${ClusterId}
 
@@ -596,7 +601,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: PreRequisite
+        - PolicyName: GetNLBIP
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -932,8 +937,7 @@ Resources:
       VPCZoneIdentifier: 
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
-        # Can't launch in 3 because don't have a listener in this AZ.
-        #- !Ref PrivateSubnet3
+        - !Ref PrivateSubnet3
       Tags:
         - Key: Name
           Value: !Sub "${ClusterId}-Bastion"
@@ -2316,6 +2320,107 @@ Resources:
   #     # Allowed values: FIFTEEN_MINUTES | ONE_HOUR | SIX_HOURS
   #     FindingPublishingFrequency: FIFTEEN_MINUTES
 
+  GuardDutyDetectorLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: ConfigureGuardDuty
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DeleteLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":logs:", !Ref "AWS::Region", ":", !Ref  "AWS::AccountId", ":log-group:/aws/lambda/", !Ref ClusterId, "*"] ]
+
+              - Effect: Allow
+                Action:
+                  - guardduty:CreateDetector
+                  - guardduty:GetDetector
+                  - guardduty:ListDetectors
+                Resource:
+                  - '*'
+
+  GuardDutyDetectorLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Get GuardDuty Detector ID. Create new detector if doesn't exist.
+      FunctionName: !Sub "${ClusterId}-GuardDutyDetector"
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt GuardDutyDetectorLambdaRole.Arn
+      Runtime: python3.7
+      Timeout: 180
+      Tags:
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+      Code:
+        ZipFile: !Sub |
+          import cfnresponse
+          import boto3
+          import logging
+          import re
+          '''
+          Get prefix list id
+          '''
+          logging.getLogger().setLevel(logging.INFO)
+          def lambda_handler(event, context):
+            try:
+              logging.info("event: {}".format(event))
+              requestType = event['RequestType']
+              if requestType == 'Delete':
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, '')
+              
+              guardduty_client = boto3.client('guardduty')
+              detectorIds = guardduty_client.list_detectors()['DetectorIds']
+              if detectorIds:
+                  logging.info("Found {} detectors:".format(len(detectorIds)))
+                  for detectorId in detectorIds:
+                      logging.info("{}".format(detectorId))
+                  detectorId = detectorIds[0]
+                  response = guardduty_client.get_detector(DetectorId=detectorId)
+                  status = response['Status']
+                  if status != 'ENABLED':
+                      cfnresponse.send(event, context, cfnresponse.FAILED, {'Id': detectorId}, '{} not enabled'.format(detectorId))
+                      return
+                  for dataSource in response['DataSources']:
+                      status = response['DataSources'][dataSource]['Status']
+                      logging.info("dataSource: {} {}".format(dataSource, status))
+                      if status != 'ENABLED':
+                          cfnresponse.send(event, context, cfnresponse.FAILED, {'Id': detectorId}, '{} {} not enabled'.format(detectorId, dataSource))
+                          return
+              else:
+                  logging.info("No detectors found. Creating new GuardDuty detector.")
+                  detectorId = guardduty_client.create_detector(Enable=True, DataSources={'S3Logs': {'Enable': True}}, Tags={'soca:ClusterId': ClusterId})['DetectorId']
+
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Id': detectorId}, str(detectorId))
+            except:
+              logging.exception("Caught exception")
+              error_message = 'Exception configuring GuardDuty'
+              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
+
+  GuardDutyDetector:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt GuardDutyDetectorLambda.Arn
+      ClusterId: !Ref ClusterId
+
+#============================================================================
+# Outputs
+#============================================================================
 Outputs:
   SchedulerIAMRole:
     Value: !Ref SchedulerIAMRole

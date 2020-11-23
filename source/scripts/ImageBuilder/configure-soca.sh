@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -x
 
 scriptdir=$(dirname $(readlink -f $0))
 scriptsdir=$(readlink -f $scriptdir/..)
@@ -14,9 +14,11 @@ else
     BASE_OS=rhel7
 fi
 export BaseOS=$BASE_OS
+echo "BaseOs=$BaseOs"
 
 # Install pip
 if ! which pip2.7; then
+    echo "Installing pip2.7"
     if [ "$BaseOS" == "centos7" ] || [ "$BaseOS" == "rhel7" ]; then
         EASY_INSTALL=$(which easy_install-2.7)
         $EASY_INSTALL pip
@@ -36,19 +38,24 @@ echo -e "\nConfiguring mount of $EFS_APPS at /apps"
 mkdir -p /apps
 echo "$EFS_APPS:/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
 
-echo "Installing ansible"
-if [ $BaseOS == "amazonlinux2" ]; then
-    amazon-linux-extras install -y ansible2
-else
-    yum -y install ansible
-fi
-
 source $scriptsdir/config.cfg
 if [ "$BaseOS" == "rhel7" ]; then
     yum-config-manager --enable rhel-7-server-rhui-optional-rpms
     yum-config-manager --enable rhel-7-server-rhui-rpms
     rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 fi
+
+if yum list installed ansible &> /dev/null; then
+    echo "ansible already installed"
+else
+    echo "Installing ansible"
+    if [ $BaseOS == "amazonlinux2" ]; then
+        amazon-linux-extras install -y ansible2
+    else
+        yum -y install ansible
+    fi
+fi
+
 if ! yum install -y $(echo ${SYSTEM_PKGS[*]}) &> system_pkgs.log; then
     cat system_pkgs.log
     exit 1
