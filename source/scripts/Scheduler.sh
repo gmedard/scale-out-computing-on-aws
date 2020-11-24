@@ -153,77 +153,79 @@ systemctl enable pbs
 systemctl start pbs
 
 if [ ! -e /var/lib/cloud/instance/sem/pbs_server_config_done ]; then
-    # Default Server config
-    /opt/pbs/bin/qmgr -c "create node $SERVER_HOSTNAME_ALT"
-    /opt/pbs/bin/qmgr -c "set node $SERVER_HOSTNAME_ALT queue = workq"
-    /opt/pbs/bin/qmgr -c "set server flatuid=true"
-    /opt/pbs/bin/qmgr -c "set server job_history_enable=1"
-    /opt/pbs/bin/qmgr -c "set server job_history_duration = 01:00:00"
-    /opt/pbs/bin/qmgr -c "set server scheduler_iteration = 30"
-    /opt/pbs/bin/qmgr -c "set server max_concurrent_provision = 5000"
+# Default Server config
+/opt/pbs/bin/qmgr -c "create node $SERVER_HOSTNAME_ALT"
+/opt/pbs/bin/qmgr -c "set node $SERVER_HOSTNAME_ALT queue = workq"
+/opt/pbs/bin/qmgr -c "set server flatuid=true"
+/opt/pbs/bin/qmgr -c "set server job_history_enable=1"
+/opt/pbs/bin/qmgr -c "set server job_history_duration = 01:00:00"
+/opt/pbs/bin/qmgr -c "set server scheduler_iteration = 30"
+/opt/pbs/bin/qmgr -c "set server max_concurrent_provision = 5000"
+
     touch /var/lib/cloud/instance/sem/pbs_server_config_done
 fi
 
 if [ ! -e /var/lib/cloud/instance/sem/pbs_queue_config_done ]; then
-    # Default Queue Config
-    /opt/pbs/bin/qmgr -c "create queue low"
-    /opt/pbs/bin/qmgr -c "set queue low queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue low started = True"
-    /opt/pbs/bin/qmgr -c "set queue low enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue low default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue normal"
-    /opt/pbs/bin/qmgr -c "set queue normal queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue normal started = True"
-    /opt/pbs/bin/qmgr -c "set queue normal enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue normal default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue high"
-    /opt/pbs/bin/qmgr -c "set queue high queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue high started = True"
-    /opt/pbs/bin/qmgr -c "set queue high enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue high default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue desktop"
-    /opt/pbs/bin/qmgr -c "set queue desktop queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue desktop started = True"
-    /opt/pbs/bin/qmgr -c "set queue desktop enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue desktop default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue test"
-    /opt/pbs/bin/qmgr -c "set queue test queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue test started = True"
-    /opt/pbs/bin/qmgr -c "set queue test enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue test default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue alwayson"
-    /opt/pbs/bin/qmgr -c "set queue alwayson queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue alwayson started = True"
-    /opt/pbs/bin/qmgr -c "set queue alwayson enabled = True"
-    /opt/pbs/bin/qmgr -c "set server default_queue = normal"
+# Default Queue Config
+/opt/pbs/bin/qmgr -c "create queue low"
+/opt/pbs/bin/qmgr -c "set queue low queue_type = Execution"
+/opt/pbs/bin/qmgr -c "set queue low started = True"
+/opt/pbs/bin/qmgr -c "set queue low enabled = True"
+/opt/pbs/bin/qmgr -c "set queue low default_chunk.compute_node=tbd"
+/opt/pbs/bin/qmgr -c "create queue normal"
+/opt/pbs/bin/qmgr -c "set queue normal queue_type = Execution"
+/opt/pbs/bin/qmgr -c "set queue normal started = True"
+/opt/pbs/bin/qmgr -c "set queue normal enabled = True"
+/opt/pbs/bin/qmgr -c "set queue normal default_chunk.compute_node=tbd"
+/opt/pbs/bin/qmgr -c "create queue high"
+/opt/pbs/bin/qmgr -c "set queue high queue_type = Execution"
+/opt/pbs/bin/qmgr -c "set queue high started = True"
+/opt/pbs/bin/qmgr -c "set queue high enabled = True"
+/opt/pbs/bin/qmgr -c "set queue high default_chunk.compute_node=tbd"
+/opt/pbs/bin/qmgr -c "create queue desktop"
+/opt/pbs/bin/qmgr -c "set queue desktop queue_type = Execution"
+/opt/pbs/bin/qmgr -c "set queue desktop started = True"
+/opt/pbs/bin/qmgr -c "set queue desktop enabled = True"
+/opt/pbs/bin/qmgr -c "set queue desktop default_chunk.compute_node=tbd"
+/opt/pbs/bin/qmgr -c "create queue test"
+/opt/pbs/bin/qmgr -c "set queue test queue_type = Execution"
+/opt/pbs/bin/qmgr -c "set queue test started = True"
+/opt/pbs/bin/qmgr -c "set queue test enabled = True"
+/opt/pbs/bin/qmgr -c "set queue test default_chunk.compute_node=tbd"
+/opt/pbs/bin/qmgr -c "create queue alwayson"
+/opt/pbs/bin/qmgr -c "set queue alwayson queue_type = Execution"
+/opt/pbs/bin/qmgr -c "set queue alwayson started = True"
+/opt/pbs/bin/qmgr -c "set queue alwayson enabled = True"
+/opt/pbs/bin/qmgr -c "set server default_queue = normal"
 
-    # Add compute_node to list of required resource
-    sed -i 's/resources: "ncpus, mem, arch, host, vnode, aoe, eoe"/resources: "ncpus, mem, arch, host, vnode, aoe, eoe, compute_node"/g' /var/spool/pbs/sched_priv/sched_config
+# Add compute_node to list of required resource
+sed -i 's/resources: "ncpus, mem, arch, host, vnode, aoe, eoe"/resources: "ncpus, mem, arch, host, vnode, aoe, eoe, compute_node"/g' /var/spool/pbs/sched_priv/sched_config
+
     touch /var/lib/cloud/instance/sem/pbs_queue_config_done
 fi
 
 if [ ! -e /var/lib/cloud/instance/sem/ldap_configured ]; then
-    # Configure Ldap
-    systemctl enable slapd
-    systemctl start slapd
+# Configure Ldap
+systemctl enable slapd
+systemctl start slapd
 
-    MASTER_LDAP_PASSWORD=$(slappasswd -g)
-    MASTER_LDAP_PASSWORD_ENCRYPTED=$(/sbin/slappasswd -s $MASTER_LDAP_PASSWORD -h "{SSHA}")
-    echo -n "admin" > /root/OpenLdapAdminUsername.txt
-    echo -n $MASTER_LDAP_PASSWORD > /root/OpenLdapAdminPassword.txt
-    chmod 600 /root/OpenLdapAdminPassword.txt
-    echo "URI ldap://$SERVER_HOSTNAME" >> /etc/openldap/ldap.conf
-    echo "BASE $LDAP_BASE" >> /etc/openldap/ldap.conf
+MASTER_LDAP_PASSWORD=$(slappasswd -g)
+MASTER_LDAP_PASSWORD_ENCRYPTED=$(/sbin/slappasswd -s $MASTER_LDAP_PASSWORD -h "{SSHA}")
+echo -n "admin" > /root/OpenLdapAdminUsername.txt
+echo -n $MASTER_LDAP_PASSWORD > /root/OpenLdapAdminPassword.txt
+chmod 600 /root/OpenLdapAdminPassword.txt
+echo "URI ldap://$SERVER_HOSTNAME" >> /etc/openldap/ldap.conf
+echo "BASE $LDAP_BASE" >> /etc/openldap/ldap.conf
 
-    # Generate 10y certificate for ldaps
-    openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
-        -subj "/C=US/ST=California/L=Sunnyvale/O=Aligo/CN=$SERVER_HOSTNAME" \
-        -keyout /etc/openldap/certs/soca.key -out /etc/openldap/certs/soca.crt
+# Generate 10y certificate for ldaps
+openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
+    -subj "/C=US/ST=California/L=Sunnyvale/O=Aligo/CN=$SERVER_HOSTNAME" \
+    -keyout /etc/openldap/certs/soca.key -out /etc/openldap/certs/soca.crt
 
-    chown ldap:ldap /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
-    chmod 600 /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
+chown ldap:ldap /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
+chmod 600 /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
 
-    echo -e "
+echo -e "
 dn: olcDatabase={2}hdb,cn=config
 changetype: modify
 replace: olcSuffix
@@ -240,7 +242,7 @@ replace: olcRootPW
 olcRootPW: $MASTER_LDAP_PASSWORD_ENCRYPTED
 " > db.ldif
 
-    echo -e "
+echo -e "
 dn: cn=config
 changetype: modify
 replace: olcTLSCertificateFile
@@ -250,7 +252,7 @@ replace: olcTLSCertificateKeyFile
 olcTLSCertificateKeyFile: /etc/openldap/certs/soca.key
 " > update_ssl_cert.ldif
 
-    echo -e "
+echo -e "
 dn: olcDatabase={2}hdb,cn=config
 changetype: modify
 replace: olcAccess
@@ -260,7 +262,7 @@ add: olcAccess
 olcAccess: {1}to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" write by dn.base="ou=admins,$LDAP_BASE" write by * read
 " > change_user_password.ldif
 
-    echo -e "
+echo -e "
 dn: cn=sudo,cn=schema,cn=config
 objectClass: olcSchemaConfig
 cn: sudo
@@ -274,15 +276,15 @@ olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.7 NAME 'sudoRunAsGroup' DESC 'Group(s
 olcObjectClasses: ( 1.3.6.1.4.1.15953.9.2.1 NAME 'sudoRole' SUP top STRUCTURAL DESC 'Sudoer Entries' MUST ( cn ) MAY ( sudoUser $ sudoHost $ sudoCommand $ sudoRunAs $ sudoRunAsUser $ sudoRunAsGroup $ sudoOption $ description ) )
 " > sudoers.ldif
 
-    /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f db.ldif
-    /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f update_ssl_cert.ldif
-    /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f change_user_password.ldif
-    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f sudoers.ldif
-    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
-    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
-    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
+/bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f db.ldif
+/bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f update_ssl_cert.ldif
+/bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f change_user_password.ldif
+/bin/ldapadd -Y EXTERNAL -H ldapi:/// -f sudoers.ldif
+/bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
+/bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
+/bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
 
-    echo -e "
+echo -e "
 dn: $LDAP_BASE
 dc: soca
 objectClass: top
@@ -309,24 +311,24 @@ objectClass: organizationalUnit
 ou: Group
 " > base.ldif
 
-    /bin/ldapadd -x -W -y /root/OpenLdapAdminPassword.txt -D "cn=admin,$LDAP_BASE" -f base.ldif
+/bin/ldapadd -x -W -y /root/OpenLdapAdminPassword.txt -D "cn=admin,$LDAP_BASE" -f base.ldif
 
-    authconfig \
-        --enablesssd \
-        --enablesssdauth \
-        --enableldap \
-        --enableldapauth \
-        --ldapserver="ldap://$SERVER_HOSTNAME" \
-        --ldapbasedn="$LDAP_BASE" \
-        --enablelocauthorize \
-        --enablemkhomedir \
-        --enablecachecreds \
-        --updateall
+authconfig \
+    --enablesssd \
+    --enablesssdauth \
+    --enableldap \
+    --enableldapauth \
+    --ldapserver="ldap://$SERVER_HOSTNAME" \
+    --ldapbasedn="$LDAP_BASE" \
+    --enablelocauthorize \
+    --enablemkhomedir \
+    --enablecachecreds \
+    --updateall
 
-    echo "sudoers: files sss" >> /etc/nsswitch.conf
+echo "sudoers: files sss" >> /etc/nsswitch.conf
 
-    # Configure SSSD
-    echo -e "[domain/default]
+# Configure SSSD
+echo -e "[domain/default]
 enumerate = True
 autofs_provider = ldap
 cache_credentials = True
@@ -365,10 +367,10 @@ ldap_sudo_smart_refresh_interval=3600
 [ifp]
 
 [secrets]" > /etc/sssd/sssd.conf
-    chmod 600 /etc/sssd/sssd.conf
+chmod 600 /etc/sssd/sssd.conf
 
-    systemctl enable sssd
-    systemctl restart sssd
+systemctl enable sssd
+systemctl restart sssd
 
     touch /var/lib/cloud/instance/sem/ldap_configured
 fi
@@ -385,10 +387,10 @@ echo "UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config
 /apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION/bin/pip3 install -r /root/requirements.txt
 
 if [ ! -e /var/lib/cloud/instance/sem/chrony_configured ]; then
-    # Configure Chrony
-    yum remove -y ntp
-    mv /etc/chrony.conf  /etc/chrony.conf.original
-    echo -e """
+# Configure Chrony
+yum remove -y ntp
+mv /etc/chrony.conf  /etc/chrony.conf.original
+echo -e """
 # use the local instance NTP service, if available
 server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4
 
@@ -415,7 +417,8 @@ logdir /var/log/chrony
 dumponexit
 dumpdir /var/run/chrony
 """ > /etc/chrony.conf
-    systemctl enable chronyd
+systemctl enable chronyd
+
     touch /var/lib/cloud/instance/sem/chrony_configured
 fi
 

@@ -39,7 +39,7 @@ chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_manager/aligoqstat.py
 
 # Generate default queue_mapping file based on default AMI choosen by customer
 if [ ! -e /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml ]; then
-  cat <<EOT >> /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
+cat <<EOT >> /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 # This manage automatic provisioning for your queues
 # These are default values. Users can override them at job submission
 # https://awslabs.github.io/scale-out-computing-on-aws/tutorials/create-your-own-queue/
@@ -121,9 +121,9 @@ fi
 # Generate 10 years internal SSL certificate for Soca Web UI
 cd /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui
 if ! [ -e cert.crt ]; then
-    openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
-        -subj "/C=US/ST=California/L=Sunnyvale/CN=internal.soca.webui.cert" \
-        -keyout cert.key -out cert.crt
+openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
+    -subj "/C=US/ST=California/L=Sunnyvale/CN=internal.soca.webui.cert" \
+    -keyout cert.key -out cert.crt
 fi
 
 # Wait for PBS to restart
@@ -140,17 +140,17 @@ sed -i "s/%SOCA_CONFIGURATION/$SOCA_CONFIGURATION/g" /apps/soca/$SOCA_CONFIGURAT
 
 # Create Default PBS hooks
 if [ ! -e /var/lib/cloud/instance/sem/pbs_hooks_created ]; then
-  qmgr -c "create hook check_queue_acls event=queuejob"
-  qmgr -c "import hook check_queue_acls application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_acls.py"
-  qmgr -c "create hook check_queue_instance_types event=queuejob"
-  qmgr -c "import hook check_queue_instance_types application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_instance_types.py"
-  qmgr -c "create hook check_queue_restricted_parameters event=queuejob"
-  qmgr -c "import hook check_queue_restricted_parameters application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_restricted_parameters.py"
-  qmgr -c "create hook check_licenses_mapping event=queuejob"
-  qmgr -c "import hook check_licenses_mapping application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_licenses_mapping.py"
+qmgr -c "create hook check_queue_acls event=queuejob"
+qmgr -c "import hook check_queue_acls application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_acls.py"
+qmgr -c "create hook check_queue_instance_types event=queuejob"
+qmgr -c "import hook check_queue_instance_types application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_instance_types.py"
+qmgr -c "create hook check_queue_restricted_parameters event=queuejob"
+qmgr -c "import hook check_queue_restricted_parameters application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_restricted_parameters.py"
+qmgr -c "create hook check_licenses_mapping event=queuejob"
+qmgr -c "import hook check_licenses_mapping application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_licenses_mapping.py"
 
-  # Reload config
-  systemctl restart pbs
+# Reload config
+systemctl restart pbs
 
   touch /var/lib/cloud/instance/sem/pbs_hooks_created
 fi
@@ -281,22 +281,22 @@ if [ ! -e /var/lib/cloud/instance/sem/user_created ]; then
 fi
 
 if [ ! -e /var/lib/cloud/instance/sem/open_mpi_installed ]; then
-  # Install OpenMPI
-  # This will take a while and is not system blocking, so adding at the end of the install process
-  mkdir -p /apps/soca/$SOCA_CONFIGURATION/openmpi/installer
-  cd /apps/soca/$SOCA_CONFIGURATION/openmpi/installer
+# Install OpenMPI
+# This will take a while and is not system blocking, so adding at the end of the install process
+mkdir -p /apps/soca/$SOCA_CONFIGURATION/openmpi/installer
+cd /apps/soca/$SOCA_CONFIGURATION/openmpi/installer
 
-  wget $OPENMPI_URL
-  if [[ $(md5sum $OPENMPI_TGZ | awk '{print $1}') != $OPENMPI_HASH ]];  then
-      echo -e "FATAL ERROR: Checksum for OpenMPI failed. File may be compromised." > /etc/motd
-      exit 1
-  fi
+wget $OPENMPI_URL
+if [[ $(md5sum $OPENMPI_TGZ | awk '{print $1}') != $OPENMPI_HASH ]];  then
+    echo -e "FATAL ERROR: Checksum for OpenMPI failed. File may be compromised." > /etc/motd
+    exit 1
+fi
 
-  tar xvf $OPENMPI_TGZ
-  cd openmpi-$OPENMPI_VERSION
-  ./configure --prefix=/apps/soca/$SOCA_CONFIGURATION/openmpi/$OPENMPI_VERSION
-  make
-  make install
+tar xvf $OPENMPI_TGZ
+cd openmpi-$OPENMPI_VERSION
+./configure --prefix=/apps/soca/$SOCA_CONFIGURATION/openmpi/$OPENMPI_VERSION
+make
+make install
 
   touch /var/lib/cloud/instance/sem/open_mpi_installed
 fi
