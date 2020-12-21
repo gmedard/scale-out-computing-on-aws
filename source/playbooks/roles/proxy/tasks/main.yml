@@ -21,19 +21,19 @@
     group: root
     force: yes
 
-- name: Create /root/Proxy.sh
+- name: Create /root/bin/configure_proxy.sh
   template:
-    src:   root/Proxy.sh
-    dest: /root/Proxy.sh
+    src:   root/bin/configure_proxy.sh
+    dest: /root/bin/configure_proxy.sh
     backup: yes
     mode: 0700
     owner: root
     group: root
     force: yes
 
-- name: Run /root/Proxy.sh
+- name: Run /root/bin/configure_proxy.sh
   shell:
-    cmd: /root/Proxy.sh
+    cmd: /root/bin/configure_proxy.sh
 
 - name: Install squid
   shell:
@@ -96,7 +96,7 @@
   template:
     src:   root/bin/create_proxyCA_pem.sh
     dest: /root/bin/create_proxyCA_pem.sh
-    mode: 0755
+    mode: 0700
     owner: root
     group: root
     force: yes
@@ -110,7 +110,7 @@
   template:
     src:   root/bin/create_proxyCA_der.sh
     dest: /root/bin/create_proxyCA_der.sh
-    mode: 0755
+    mode: 0700
     owner: root
     group: root
     force: yes
@@ -122,14 +122,12 @@
   
 - name: Get squid version
   shell:
-    creates: /var/lib/ssl_db/certs
     cmd: |
       squid -v|grep Version|awk '{print $4}'
   register: squid_version
     
 - name: Get squid major version
   shell:
-    creates: /var/lib/ssl_db/certs
     cmd: |
       squid -v|grep Version|awk '{print $4}'|tr '.' ' '|awk '{print $1}'
   register: squid_major_version
@@ -195,3 +193,24 @@
     name: proxy_monitor.service
     daemon_reload: yes
     state: started
+
+- name: Create /root/bin/update_proxy_rules.sh
+  template:
+    src:   root/bin/update_proxy_rules.sh
+    dest: /root/bin/update_proxy_rules.sh
+    backup: yes
+    mode: 0700
+    owner: root
+    group: root
+    force: yes
+
+- name: Create crontab to update proxy rules
+  cron:
+    name: 'update_proxy_rules'
+    state: present
+    minute: '*/5'
+    hour: '*'
+    weekday: '*'
+    day: '*'
+    month: '*'
+    job: /root/bin/update_proxy_rules.sh
