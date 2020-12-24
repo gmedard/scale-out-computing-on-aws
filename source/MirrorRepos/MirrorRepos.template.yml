@@ -93,3 +93,7 @@ Resources:
           Type: NO_ARTIFACTS
       ServiceRole: !Ref CodeBuildRole
       TimeoutInMinutes: 60
+
+Outputs:
+  MirrorCentos7ReposProject:
+    Value: !Sub "https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${MirrorCentos7ReposProject}?region=${AWS::Region}"

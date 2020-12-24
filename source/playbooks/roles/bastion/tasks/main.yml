@@ -1,0 +1,7 @@
+---
+# tasks file for bastion
+
+- name: Install security updates
+  yum:
+    security: yes
+    state: latest

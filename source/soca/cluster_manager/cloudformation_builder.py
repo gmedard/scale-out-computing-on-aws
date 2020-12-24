@@ -123,6 +123,9 @@ if ! yum list installed ansible &> /dev/null; then
     if [ $BASE_OS == "amazonlinux2" ]; then
         amazon-linux-extras install -y ansible2
     else
+        if ! yum list installed epel-release &> /dev/null; then
+            yum -y install epel-release
+        fi
         yum -y install ansible
     fi
 fi

@@ -16,6 +16,20 @@ fi
 export BaseOS=$BASE_OS
 echo "BaseOs=$BaseOs"
 
+# Install epel
+if [ $BaseOS == "amazonlinux2" ]; then
+    amazon-linux-extras install -y epel
+else
+    yum -y install epel-release
+fi
+
+# Install ansible
+if [ $BaseOS == "amazonlinux2" ]; then
+    amazon-linux-extras install -y ansible2
+else
+    yum -y install ansible
+fi
+
 # Install pip
 if ! which pip2.7; then
     echo "Installing pip2.7"

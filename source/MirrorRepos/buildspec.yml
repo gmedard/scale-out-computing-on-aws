@@ -30,6 +30,14 @@ phases:
       - yum -y install wget
       - yum -y install make createrepo rpm-build
       - pip install mock
+      - # Install fsx lustre client
+      - curl https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -o /tmp/fsx-rpm-public-key.asc
+      - rpm --import /tmp/fsx-rpm-public-key.asc
+      - curl https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -o /etc/yum.repos.d/aws-fsx.repo
+      - #yum install -y kmod-lustre-client lustre-client
+      - yum --disablerepo="*" --enablerepo="aws-fsx" list available
+      - yum --disablerepo="*" --enablerepo="aws-fsx-src" list available
+      - #yumdownloader --source kmod-lustre-client
 
     finally:
       - echo "Install phase complete"
@@ -83,6 +91,8 @@ phases:
       - reposync --quiet -g -l -p $repo_dir/yum/centos7 -r epel
       - reposync --quiet -g -l -p $repo_dir/yum/centos7 -r extras
       - reposync --quiet -g -l -p $repo_dir/yum/centos7 -r updates
+      - reposync --quiet -g -l -p $repo_dir/yum/centos7 -r aws-fsx
+      - reposync --quiet -g -l -p $repo_dir/yum/centos7 -r aws-fsx-src
       - createrepo $repo_dir/yum/centos7
 
     finally:

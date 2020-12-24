@@ -44,7 +44,7 @@ fi
 # Install SSM
 if ! yum list amazon-ssm-agent; then
     info "Installing amazon-ssm-agent"
-    yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+    yum install -y https://s3.${AWS_DEFAULT_REGION}.amazonaws.com/amazon-ssm-${AWS_DEFAULT_REGION}/latest/linux_amd64/amazon-ssm-agent.rpm
 fi
 systemctl enable amazon-ssm-agent || true
 systemctl restart amazon-ssm-agent

@@ -1,0 +1,7 @@
+---
+# tasks file for scheduler
+
+- name: Install security updates
+  yum:
+    security: yes
+    state: latest

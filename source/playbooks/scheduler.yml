@@ -5,4 +5,5 @@
   become: yes
   roles:
     - proxied
-    - install-cloudwatch-agent
+    - common
+    - scheduler

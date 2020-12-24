@@ -122,15 +122,6 @@ Resources:
           "Fn::Base64": !Sub |
             #!/bin/bash -xe
 
-            # Configure using ansible
-            # This can be done before configuring the proxy because S3 is accessed using the S3 VPC endpoint
-            amazon-linux-extras install -y ansible2
-            aws s3 cp --recursive s3://${S3InstallBucket}/${S3InstallFolder}/playbooks/ /root/playbooks/
-            cd /root/playbooks
-            ansible-playbook scheduler.yml -e Region=${AWS::Region} -e Domain=${SocaDomain} -e S3InstallBucket=${S3InstallBucket} -e S3InstallFolder=${S3InstallFolder} -e ClusterId=${ClusterId} -e NoProxy=${NoProxy} -e NodeType=scheduler >> /root/ansible.log 2>&1
-
-            source /etc/profile.d/proxy.sh
-
             # Signal Cloudformation if the instance creates successfully or not
             yum -y install -y aws-cfn-bootstrap
             function on_exit {
@@ -138,8 +129,29 @@ Resources:
             }
             trap on_exit EXIT
 
-            # Apply security patches
-            yum -y update --security
+            echo export "AWS_DEFAULT_REGION=${AWS::Region}" >> /etc/environment
+            echo export "NO_PROXY=${NoProxy}" >> /etc/environment
+            echo export "SOCA_BASE_OS=${ComputeNodeBaseOS}" >> /etc/environment
+            echo export "SOCA_CLOUDFORMATION_STACK=${AWS::StackName}" >> /etc/environment
+            echo export "SOCA_CONFIGURATION=${ClusterId}" >> /etc/environment
+            echo export "SOCA_DOMAIN=${SocaDomain}" >> /etc/environment
+            echo export "SOCA_HOSTED_ZONE_ID=${HostedZoneId}" >> /etc/environment
+            echo export "SOCA_INSTALL_BUCKET=${S3InstallBucket}" >> /etc/environment
+            echo export "SOCA_INSTALL_BUCKET_FOLDER=${S3InstallFolder}" >> /etc/environment
+            echo export "SOCA_VERSION=${Version}" >> /etc/environment
+            echo export "SOCA_INSTALL_AMI=${ComputeNodeCustomAMI}" >> /etc/environment
+
+            source /etc/environment
+
+            # Configure using ansible
+            # This can be done before configuring the proxy because S3 is accessed using the S3 VPC endpoint
+            amazon-linux-extras install -y ansible2
+            rm -rf /root/playbooks
+            aws s3 cp --recursive s3://${S3InstallBucket}/${S3InstallFolder}/playbooks/ /root/playbooks/
+            cd /root/playbooks
+            ansible-playbook scheduler.yml -e Region=${AWS::Region} -e Domain=${SocaDomain} -e S3InstallBucket=${S3InstallBucket} -e S3InstallFolder=${S3InstallFolder} -e ClusterId=${ClusterId} -e NoProxy=${NoProxy} -e NodeType=scheduler >> /root/ansible.log 2>&1
+
+            source /etc/profile.d/proxy.sh
 
             export PATH=$PATH:/usr/local/bin
 
@@ -160,16 +172,6 @@ Resources:
             rm -f /etc/update-motd.d/*
 
             AWS=$(which aws)
-            echo export "SOCA_BASE_OS=${ComputeNodeBaseOS}" > /etc/environment
-            echo export "SOCA_CLOUDFORMATION_STACK=${AWS::StackName}" >> /etc/environment
-            echo export "SOCA_CONFIGURATION=${ClusterId}" >> /etc/environment
-            echo export "AWS_DEFAULT_REGION=${AWS::Region}" >> /etc/environment
-            echo export "SOCA_INSTALL_BUCKET=${S3InstallBucket}" >> /etc/environment
-            echo export "SOCA_INSTALL_BUCKET_FOLDER=${S3InstallFolder}" >> /etc/environment
-            echo export "SOCA_VERSION=${Version}" >> /etc/environment
-            echo export "SOCA_INSTALL_AMI=${ComputeNodeCustomAMI}" >> /etc/environment
-            source /etc/environment
-
             # Tag EBS disks manually as CFN ASG does not support it
             AWS_AVAIL_ZONE=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)
             AWS_REGION="`echo \"$AWS_AVAIL_ZONE\" | sed "s/[a-z]$//"`"

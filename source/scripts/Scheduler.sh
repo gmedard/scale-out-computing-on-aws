@@ -22,13 +22,6 @@ function on_exit {
 }
 trap on_exit EXIT
 
-# Install SSM
-if ! yum list amazon-ssm-agent; then
-    yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-fi
-systemctl enable amazon-ssm-agent || true
-systemctl restart amazon-ssm-agent
-
 SERVER_IP=$(hostname -I)
 SERVER_HOSTNAME=$(hostname)
 SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)

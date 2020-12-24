@@ -96,7 +96,7 @@ if __name__ == "__main__":
         s3.meta.client.head_bucket(Bucket=bucket)
         s3_bucket_exists = True
     except ClientError as e:
-        print(" > The bucket "+ bucket + " does not exist or you have no access.")
+        print(" > The bucket " + bucket + " does not exist or you have no access.")
         print(e)
         print(" > Building locally but not uploading to S3")
 
@@ -175,7 +175,7 @@ if __name__ == "__main__":
             print("\nUpdated template: {}".format(template_url))
         
         if args.create or args.create_change_set or args.update:
-            cfn_client = boto3.client('cloudformation')
+            cfn_client = boto3.client('cloudformation', region_name=region)
             parameters = [
                 {'ParameterKey': 'S3InstallBucket', 'ParameterValue': args.bucket},
                 {'ParameterKey': 'S3InstallFolder', 'ParameterValue': output_prefix},
@@ -208,7 +208,7 @@ if __name__ == "__main__":
             elif not args.create:
                 parameters.append({'ParameterKey': 'UserName', 'UsePreviousValue': True})
             if args.password:
-                ssm_client = boto3.client('ssm')
+                ssm_client = boto3.client('ssm', region_name=region)
                 password = ssm_client.get_parameter(Name=args.password)['Parameter']['Value']
                 parameters.append({'ParameterKey': 'UserPassword', 'ParameterValue': password})
             elif not args.create:

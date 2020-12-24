@@ -1,6 +1,11 @@
 ---
 # tasks file for proxy
 
+- name: Install security updates
+  yum:
+    security: yes
+    state: latest
+
 - name: Create /root/bin
   file:
     path: /root/bin
@@ -9,31 +14,21 @@
     group: root
     mode: 0700
 
-- { include: disable_ulimits.yml, tags: packages }
+- { include: disable_ulimits.yml }
 
-- name: Create /etc/chrony.conf
+- name: Create /root/bin/add-dns-entry.sh
   template:
-    src:   etc/chrony.conf
-    dest: /etc/chrony.conf
-    backup: yes
-    mode: 0644
-    owner: root
-    group: root
-    force: yes
-
-- name: Create /root/bin/configure_proxy.sh
-  template:
-    src:   root/bin/configure_proxy.sh
-    dest: /root/bin/configure_proxy.sh
+    src:   root/bin/add-dns-entry.sh
+    dest: /root/bin/add-dns-entry.sh
     backup: yes
     mode: 0700
     owner: root
     group: root
     force: yes
 
-- name: Run /root/bin/configure_proxy.sh
+- name: Run /root/bin/add-dns-entry.sh
   shell:
-    cmd: /root/bin/configure_proxy.sh
+    cmd: /root/bin/add-dns-entry.sh
 
 - name: Install squid
   shell:
