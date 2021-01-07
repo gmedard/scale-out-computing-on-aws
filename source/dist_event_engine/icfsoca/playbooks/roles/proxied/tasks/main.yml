@@ -1,0 +1,55 @@
+---
+# tasks file for proxied role
+
+- name: Create /root/bin
+  file:
+    path: /root/bin
+    state: directory
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create /root/bin/install-proxyCACert.sh
+  template:
+    src:   root/bin/install-proxyCACert.sh
+    dest: /root/bin/install-proxyCACert.sh
+    backup: yes
+    mode: 0700
+    owner: root
+    group: root
+    force: yes
+
+- name: Create /etc/pki/ca-trust/source/anchors/proxyCA.pem
+  shell:
+    creates: /etc/pki/ca-trust/source/anchors/proxyCA.pem
+    cmd: /root/bin/install-proxyCACert.sh
+
+- name: Create /etc/profile.d/proxy.csh
+  template:
+    src:   etc/profile.d/proxy.csh
+    dest: /etc/profile.d/proxy.csh
+    backup: yes
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+
+- name: Create /etc/profile.d/proxy.sh
+  template:
+    src:   etc/profile.d/proxy.sh
+    dest: /etc/profile.d/proxy.sh
+    backup: yes
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+
+- name: Create /etc/yum.repos.d/10_proxy.conf
+  template:
+    src:   etc/yum.repos.d/10_proxy.conf
+    dest: /etc/yum.repos.d/10_proxy.conf
+    backup: yes
+    mode: 0644
+    owner: root
+    group: root
+    force: yes

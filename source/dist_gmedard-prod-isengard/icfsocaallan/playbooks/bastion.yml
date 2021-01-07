@@ -1,0 +1,8 @@
+---
+- name: Configure bastion server
+  hosts: 127.0.0.1
+  become_user: root
+  become: yes
+  roles:
+    - proxied
+    - install-cloudwatch-agent

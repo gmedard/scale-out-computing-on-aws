@@ -9,16 +9,16 @@ Parameters:
 
   ClusterId:
     Type: String
-  
+
   S3InstallBucket:
     Type: String
-  
+
   S3InstallFolder:
     Type: String
-  
+
   VpcId:
     Type: String
-  
+
   PublicSubnet1:
     Type: String
 
@@ -33,32 +33,32 @@ Parameters:
     Description: Prefix list with IP(s) allowed to directly SSH into the scheduler and access ElasticSearch.
     AllowedPattern: '(pl-([a-zA-Z0-9]+))|(^$)'
     ConstraintDescription: PrefixListId must be blank or pl-[a-z][A-Z][0-9]+
-  
+
   ImageBuilderSecurityGroupId:
     Type: String
 
   SSHKeyPair:
     Type: AWS::EC2::KeyPair::KeyName
     Description: Default SSH pem keys used to SSH into the scheduler
-  
+
   AmazonLinux2AMI:
     Type: String
-  
+
   CentOS7AMI:
     Type: String
-  
+
   RHEL7AMI:
     Type: String
-  
+
   EFSDataDns:
     Type: String
-  
+
   EFSAppsDns:
     Type: String
-  
+
   SocaVersion:
     Type: String
-  
+
 Conditions:
   HasClientIp:
     !Not [ !Equals [ !Ref ClientIp, '' ] ]
@@ -140,7 +140,7 @@ Resources:
                   logging.info("event: {}".format(pp.pformat(event)))
 
                   logging.info("environ:\n{}".format(environ))
-        
+
                   for record in event['Records']:
                       handle_record(record)
               except Exception as e:
@@ -170,7 +170,7 @@ Resources:
 
               buildVersion = message['buildVersion']
               logging.info('buildVersion: {}'.format(buildVersion))
-    
+
               amis = message['outputResources']['amis']
               for ami in amis:
                   logging.info("ami details:\n{}".format(ami))
@@ -385,7 +385,7 @@ Resources:
       Name: !Sub "${ClusterId}-SOCAComponent"
       Platform: Linux
       Version: 1.0.0
-      Tags: 
+      Tags:
         Name: !Sub ${ClusterId}-SOCAComponent
         'soca:ClusterId': !Ref ClusterId
       Data: !Sub |
@@ -439,7 +439,7 @@ Resources:
       Name: !Sub "${ClusterId}-EDAComponent"
       Platform: Linux
       Version: 1.0.0
-      Tags: 
+      Tags:
         Name: !Sub ${ClusterId}-EDAComponent
         'soca:ClusterId': !Ref ClusterId
       Data: !Sub |
@@ -483,7 +483,7 @@ Resources:
       Name: !Sub "${ClusterId}-DesktopComponent"
       Platform: Linux
       Version: 1.0.0
-      Tags: 
+      Tags:
         Name: !Sub ${ClusterId}-DesktopComponent
         'soca:ClusterId': !Ref ClusterId
       Data: !Sub |
@@ -545,14 +545,14 @@ Resources:
             Encrypted: true
             DeleteOnTermination: true
             #VolumeSize: 30
-      Tags: 
+      Tags:
         'soca:ClusterId': !Ref ClusterId
 
   Centos7SOCADistributionConfiguration:
     Type: AWS::ImageBuilder::DistributionConfiguration
     Properties:
       Name: !Sub "${ClusterId}-Centos7-SOCA-Distr-Config"
-      Distributions: 
+      Distributions:
         - Region: !Ref "AWS::Region"
           AmiDistributionConfiguration:
             Name: !Sub '${ClusterId}-Centos7-SOCA-{{ imagebuilder:buildDate }}'
@@ -560,13 +560,13 @@ Resources:
             AmiTags:
               Name: !Sub '${ClusterId}-Centos7-SOCA-{{ imagebuilder:buildDate }}'
               'soca:ClusterId': !Ref ClusterId
-      Tags: 
+      Tags:
         Name: !Sub ${ClusterId}-ImageBuilderImage
         'soca:ClusterId': !Ref ClusterId
 
   Centos7SOCAPipeline:
     Type: AWS::ImageBuilder::ImagePipeline
-    Properties: 
+    Properties:
       Name: !Sub "${ClusterId}-Centos7SOCAPipeline"
       ImageRecipeArn: !Ref Centos7SOCAImageRecipe
       DistributionConfigurationArn: !Ref Centos7SOCADistributionConfiguration
@@ -617,7 +617,7 @@ Resources:
     Type: AWS::ImageBuilder::DistributionConfiguration
     Properties:
       Name: !Sub "${ClusterId}-Centos7-SOCA-Desktop-Distr-Config"
-      Distributions: 
+      Distributions:
         - Region: !Ref "AWS::Region"
           AmiDistributionConfiguration:
             Name: !Sub '${ClusterId}-Centos7-SOCA-Desktop-{{ imagebuilder:buildDate }}'
@@ -625,13 +625,13 @@ Resources:
             AmiTags:
               Name: !Sub '${ClusterId}-Centos7-SOCA-Desktop-{{ imagebuilder:buildDate }}'
               'soca:ClusterId': !Ref ClusterId
-      Tags: 
+      Tags:
         Name: !Sub ${ClusterId}-SOCA-Desktop-ImageBuilderImage
         'soca:ClusterId': !Ref ClusterId
 
   Centos7SOCADesktopPipeline:
     Type: AWS::ImageBuilder::ImagePipeline
-    Properties: 
+    Properties:
       Name: !Sub "${ClusterId}-Centos7SOCADesktopPipeline"
       ImageRecipeArn: !Ref Centos7SOCADesktopImageRecipe
       DistributionConfigurationArn: !Ref Centos7SOCADesktopDistributionConfiguration
@@ -681,7 +681,7 @@ Resources:
     Type: AWS::ImageBuilder::DistributionConfiguration
     Properties:
       Name: !Sub "${ClusterId}-Centos7-EDA-Distr-Config"
-      Distributions: 
+      Distributions:
         - Region: !Ref "AWS::Region"
           AmiDistributionConfiguration:
             Name: !Sub '${ClusterId}-Centos7-EDA-{{ imagebuilder:buildDate }}'
@@ -689,13 +689,13 @@ Resources:
             AmiTags:
               Name: !Sub '${ClusterId}-Centos7-EDA-{{ imagebuilder:buildDate }}'
               'soca:ClusterId': !Ref ClusterId
-      Tags: 
+      Tags:
         Name: !Sub ${ClusterId}-ImageBuilderImage
         'soca:ClusterId': !Ref ClusterId
 
   Centos7EDAPipeline:
     Type: AWS::ImageBuilder::ImagePipeline
-    Properties: 
+    Properties:
       Name: !Sub "${ClusterId}-Centos7EDAPipeline"
       ImageRecipeArn: !Ref Centos7EDAImageRecipe
       DistributionConfigurationArn: !Ref Centos7EDADistributionConfiguration
@@ -746,7 +746,7 @@ Resources:
     Type: AWS::ImageBuilder::DistributionConfiguration
     Properties:
       Name: !Sub "${ClusterId}-Centos7-EDA-Desktop-Distr-Config"
-      Distributions: 
+      Distributions:
         - Region: !Ref "AWS::Region"
           AmiDistributionConfiguration:
             Name: !Sub '${ClusterId}-Centos7-EDA-Desktop-{{ imagebuilder:buildDate }}'
@@ -754,13 +754,13 @@ Resources:
             AmiTags:
               Name: !Sub '${ClusterId}-Centos7-EDA-Desktop-{{ imagebuilder:buildDate }}'
               'soca:ClusterId': !Ref ClusterId
-      Tags: 
+      Tags:
         Name: !Sub ${ClusterId}-ImageBuilderImage
         'soca:ClusterId': !Ref ClusterId
 
   Centos7EDADesktopPipeline:
     Type: AWS::ImageBuilder::ImagePipeline
-    Properties: 
+    Properties:
       Name: !Sub "${ClusterId}-Centos7EDADesktopPipeline"
       ImageRecipeArn: !Ref Centos7EDADesktopImageRecipe
       DistributionConfigurationArn: !Ref Centos7EDADesktopDistributionConfiguration
@@ -789,7 +789,7 @@ Resources:
       Version: 1.0.0
       Description: Configure Redhat 7 AMI for SOCA EDA Node
       ParentImage: !Sub 'arn:aws:imagebuilder:${AWS::Region}:aws:image/red-hat-enterprise-linux-7-x86/x.x.x'
-      Components: 
+      Components:
         - ComponentArn: !Sub "arn:aws:imagebuilder:${AWS::Region}:aws:component/update-linux/1.0.0"
         - ComponentArn: !Sub "arn:aws:imagebuilder:${AWS::Region}:aws:component/update-linux-kernel-mainline/1.0.0"
         - ComponentArn: !Sub "arn:aws:imagebuilder:${AWS::Region}:aws:component/aws-cli-version-2-linux/1.0.0"
@@ -797,14 +797,14 @@ Resources:
         - ComponentArn: !Sub "arn:aws:imagebuilder:${AWS::Region}:aws:component/python-3-linux/1.0.2"
         - ComponentArn: !Ref SOCAComponent
         - ComponentArn: !Ref EDAComponent
-      Tags: 
+      Tags:
         'soca:ClusterId': !Ref ClusterId
 
   RHEL7EDADistributionConfiguration:
     Type: AWS::ImageBuilder::DistributionConfiguration
     Properties:
       Name: !Sub "${ClusterId}-RHEL7-EDA-Distr-Config"
-      Distributions: 
+      Distributions:
         - Region: !Ref "AWS::Region"
           AmiDistributionConfiguration:
             Name: !Sub '${ClusterId}-RHEL7-EDA-{{ imagebuilder:buildDate }}'
@@ -812,13 +812,13 @@ Resources:
             AmiTags:
               Name: !Sub '${ClusterId}-RHEL7-EDA-{{ imagebuilder:buildDate }}'
               'soca:ClusterId': !Ref ClusterId
-      Tags: 
+      Tags:
         Name: !Sub ${ClusterId}-ImageBuilderImage
         'soca:ClusterId': !Ref ClusterId
 
   RHEL7EDAPipeline:
     Type: AWS::ImageBuilder::ImagePipeline
-    Properties: 
+    Properties:
       Name: !Sub "${ClusterId}-RHEL7EDAPipeline"
       ImageRecipeArn: !Ref RHEL7EDAImageRecipe
       ImageTestsConfiguration:
@@ -849,7 +849,7 @@ Resources:
       Version: 1.0.0
       Description: Configure Redhat 7 AMI for SOCA EDA Desktop Node
       ParentImage: !Sub 'arn:aws:imagebuilder:${AWS::Region}:aws:image/red-hat-enterprise-linux-7-x86/x.x.x'
-      Components: 
+      Components:
         - ComponentArn: !Sub "arn:aws:imagebuilder:${AWS::Region}:aws:component/update-linux/1.0.0"
         - ComponentArn: !Sub "arn:aws:imagebuilder:${AWS::Region}:aws:component/update-linux-kernel-mainline/1.0.0"
         - ComponentArn: !Sub "arn:aws:imagebuilder:${AWS::Region}:aws:component/aws-cli-version-2-linux/1.0.0"
@@ -864,14 +864,14 @@ Resources:
             Encrypted: true
             DeleteOnTermination: true
             VolumeSize: 15
-      Tags: 
+      Tags:
         'soca:ClusterId': !Ref ClusterId
 
   RHEL7EDADesktopDistributionConfiguration:
     Type: AWS::ImageBuilder::DistributionConfiguration
     Properties:
       Name: !Sub "${ClusterId}-RHEL7-EDA-Desktop-Distr-Config"
-      Distributions: 
+      Distributions:
         - Region: !Ref "AWS::Region"
           AmiDistributionConfiguration:
             Name: !Sub '${ClusterId}-RHEL7-EDA-Desktop-{{ imagebuilder:buildDate }}'
@@ -879,13 +879,13 @@ Resources:
             AmiTags:
               Name: !Sub '${ClusterId}-RHEL7-EDA-Desktop-{{ imagebuilder:buildDate }}'
               'soca:ClusterId': !Ref ClusterId
-      Tags: 
+      Tags:
         Name: !Sub ${ClusterId}-ImageBuilderImage
         'soca:ClusterId': !Ref ClusterId
 
   RHEL7EDADesktopPipeline:
     Type: AWS::ImageBuilder::ImagePipeline
-    Properties: 
+    Properties:
       Name: !Sub "${ClusterId}-RHEL7EDADesktopPipeline"
       ImageRecipeArn: !Ref RHEL7EDADesktopImageRecipe
       ImageTestsConfiguration:

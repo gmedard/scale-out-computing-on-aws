@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: (SOCA) - Manage ELK stack
+Parameters:
+  SchedulerSecurityGroup:
+    Type: String
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+
+  ClusterId:
+    Type: String
+
+  SchedulerPublicIP:
+    Type: String
+
+  EIPNat:
+    Type: String
+
+  ClientIp:
+    Type: String
+
+  PrefixListId:
+    Type: String
+
+Conditions:
+  HasClientIp:
+    !Not [ !Equals [ !Ref ClientIp, '' ] ]
+
+  HasPrefixListId:
+    !Not [ !Equals [ !Ref PrefixListId, '' ] ]
+
+Resources:
+  ElasticsearchDomain:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Domain Name is required if we want to restrict AccessPolicies to this resource only"
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      ElasticsearchVersion: 7.4
+      DomainName: !Sub ${ClusterId}
+      NodeToNodeEncryptionOptions:
+         Enabled: True
+      EncryptionAtRestOptions:
+         Enabled: True
+      EBSOptions:
+        VolumeSize: 100
+        VolumeType: gp2
+        EBSEnabled: true
+      ElasticsearchClusterConfig:
+        InstanceCount: 2
+        InstanceType: m5.large.elasticsearch
+        ZoneAwarenessEnabled: True
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: '0'
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:ESHttp*'
+            Condition:
+              IpAddress:
+                aws:SourceIp:
+                  - !If [ HasClientIp, !Ref ClientIp, !Ref 'AWS::NoValue' ]
+                  - !Sub ${SchedulerPublicIP}/32
+                  - !Sub ${EIPNat}/32
+            Resource: !Sub 'arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/${ClusterId}/*'
+
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: 'true'
+
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterId}-analytics
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+
+      # Cloudformation does not support bind of ElasticSearchServiceLinkedRole to ElasticsearchDomain
+      # Because of this limitation we are restricted to non VPC only
+
+      #VPCOptions:
+      #  SubnetIds:
+      #    - !Ref PublicSubnet1
+      #  SecurityGroupIds:
+      #    - !Ref SchedulerSecurityGroup
+
+      #ElasticSearchServiceLinkedRole:
+      #  Type: AWS::IAM::ServiceLinkedRole
+      ##  Properties:
+      #    AWSServiceName: es.amazonaws.com
+      #    Description: !Sub Service Link Role for ${ClusterId}-analytics
+
+
+Outputs:
+  ESDomainArn:
+    Value: !GetAtt ElasticsearchDomain.DomainArn
+  ESDomainEndpoint:
+    Value: !GetAtt ElasticsearchDomain.DomainEndpoint
+
